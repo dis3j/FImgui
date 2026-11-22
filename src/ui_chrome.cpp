@@ -434,6 +434,7 @@ void App::DrawUpdateDialogs()
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
         ImGui::TextUnformatted("Design editor for Dear ImGui menus. Interface design inspired by Figma.");
         ImGui::TextUnformatted("Not affiliated with Figma, Inc. Free tool - your projects are yours to sell; Fimgui itself may not be sold.");
+        ImGui::TextUnformatted("Fonts rendered with FreeType. Portions of this software are copyright (c) 2024 The FreeType Project.");
         ImGui::PopStyleColor();
         ImGui::Dummy(ImVec2(0, U(8)));
         if (ImGui::Button("GitHub", ImVec2(U(110), U(30)))) platform::OpenUrl("https://github.com/" FIMGUI_REPO);

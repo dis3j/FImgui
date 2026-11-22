@@ -5,3 +5,4 @@ build_test/
 *.log
 build_dev/
 build_check/
+build_ft/

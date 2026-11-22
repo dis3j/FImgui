@@ -6,6 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
 
+# FreeType (third_party/freetype, 2.13.3) rasterizes all fonts: hinted, sharper text than stb_truetype.
+# Only the core is built: no zlib / bzip2 / png / harfbuzz / brotli dependencies.
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+add_subdirectory(third_party/freetype EXCLUDE_FROM_ALL)
+
 add_executable(Fimgui WIN32
     src/main.cpp
     resources/fimgui.rc
@@ -41,13 +52,14 @@ add_executable(Fimgui WIN32
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp
     ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
     ${IMGUI_DIR}/backends/imgui_impl_dx11.cpp
 )
 
 target_include_directories(Fimgui PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends runtime src)
-target_compile_definitions(Fimgui PRIVATE UNICODE _UNICODE NOMINMAX _CRT_SECURE_NO_WARNINGS)
-target_link_libraries(Fimgui PRIVATE d3d11 dxgi d3dcompiler dwmapi winhttp crypt32 shell32 ole32 shlwapi mfplat mfreadwrite mfuuid ws2_32)
+target_compile_definitions(Fimgui PRIVATE UNICODE _UNICODE NOMINMAX _CRT_SECURE_NO_WARNINGS IMGUI_ENABLE_FREETYPE)
+target_link_libraries(Fimgui PRIVATE freetype d3d11 dxgi d3dcompiler dwmapi winhttp crypt32 shell32 ole32 shlwapi mfplat mfreadwrite mfuuid ws2_32)
 
 if(MSVC)
     target_compile_options(Fimgui PRIVATE /utf-8 /bigobj /W3 /MP)

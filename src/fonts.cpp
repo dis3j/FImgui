@@ -1,4 +1,7 @@
 #include "fonts.h"
+#ifdef IMGUI_ENABLE_FREETYPE
+#include "misc/freetype/imgui_freetype.h"
+#endif
 #include "document.h"
 #include "../runtime/fimgui_runtime.h"
 #include "renderer.h"
@@ -140,6 +143,11 @@ namespace fonts
 
     void Init(const std::string& resourceDir)
     {
+#ifdef IMGUI_ENABLE_FREETYPE
+        // FreeType with light hinting: glyphs snap to the pixel grid vertically only, so text is crisp
+        // while letter spacing stays true to the design.
+        ImGui::GetIO().Fonts->FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
+#endif
         ScanDir(fs::u8path(resourceDir) / "fonts");
         wchar_t* p = nullptr;
         if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Fonts, 0, nullptr, &p))) { ScanDir(p); CoTaskMemFree(p); }

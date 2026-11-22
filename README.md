@@ -22,7 +22,7 @@ cmake --build build --config Release
 build\Release\Fimgui.exe examples\demo_menu.fimgui
 ```
 
-Все зависимости лежат в `third_party/`: Dear ImGui (ветка docking, 1.93), nanosvg, stb_image, nlohmann/json. Шрифт Inter (лицензия OFL) лежит в `resources/fonts`. После сборки рядом с exe копируются `runtime/` (его экспортёр кладёт в каждый проект) и `resources/`.
+Все зависимости лежат в `third_party/`: Dear ImGui (ветка docking, 1.93), FreeType 2.13.3 (растеризация шрифтов с хинтингом), nanosvg, stb_image, nlohmann/json. Шрифт Inter (лицензия OFL) лежит в `resources/fonts`. После сборки рядом с exe копируются `runtime/` (его экспортёр кладёт в каждый проект) и `resources/`.
 
 ## Установка и обновления
 
@@ -315,7 +315,7 @@ python examples\scripts\make_timelapse.py frames docs\timelapse_login.gif 800
 
 В каждую экспортированную папку кладётся `LICENSE-FIMGUI.txt`.
 
-Сторонние компоненты (Dear ImGui, NanoSVG, stb, nlohmann/json, шрифт Inter) распространяются по своим лицензиям, см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Сторонние компоненты (Dear ImGui, FreeType, NanoSVG, stb, nlohmann/json, шрифт Inter) распространяются по своим лицензиям, см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Структура
 
