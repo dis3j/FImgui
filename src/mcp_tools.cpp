@@ -60,8 +60,9 @@ json McpToolList()
                  { "x", { { "type", "number" } } }, { "y", { { "type", "number" } } },
                  { "place", { { "type", "boolean" }, { "description", "Create a layer (default true)" } } } }, { "path" }), false);
     add("export_project", "Export project",
-        "target 'imgui' (default) writes the C++ project for all top-level frames: menu .h/.cpp, runtime, effects, icons, images, videos, fonts and a DirectX 11 example host. "
-        "target 'minecraft' writes a Minecraft 1.21.1 GUI for the first top-level frame: a Screen for Fabric or NeoForge, the menu class, the Fimgui Java runtime, baked layer textures and TTF fonts (src/main/java + src/main/resources).",
+        "target 'imgui' writes the C++ project for all top-level frames: menu .h/.cpp, runtime, effects, icons, images, videos, fonts and a DirectX 11 example host. "
+        "target 'minecraft' writes a Minecraft 1.21.1 GUI for the first top-level frame: a Screen for Fabric or NeoForge, the menu class, the Fimgui Java runtime, baked layer textures and TTF fonts (src/main/java + src/main/resources). "
+        "Without target, the type of the open project decides (Minecraft projects export for Minecraft).",
         Schema({ { "out_dir", { { "type", "string" }, { "description", "Absolute output folder" } } },
                  { "target", { { "type", "string" }, { "enum", { "imgui", "minecraft" } } } },
                  { "namespace", { { "type", "string" } } }, { "file_base", { { "type", "string" } } },
@@ -76,10 +77,11 @@ json McpToolList()
         Schema({ { "action", { { "type", "string" }, { "enum", { "undo", "redo" } } } }, { "steps", { { "type", "integer" }, { "minimum", 1 } } } }, { "action" }), false);
     add("document_file", "Document file",
         "Projects live in the workspace folder (default C:/FImgui) as <Name>/<name>.fimgui with fonts/, images/, icons/, videos/ and export/. "
-        "Actions: list_projects; new_project (name); open_project (name or path); save (saves the project, or to path); new (blank unsaved design); open (any .fimgui path). "
+        "Actions: list_projects; new_project (name, type imgui|minecraft, default imgui); open_project (name or path); save (saves the project, or to path); new (blank unsaved design); open (any .fimgui path). "
         "new/open/new_project/open_project refuse to drop unsaved changes unless discard_changes is true.",
         Schema({ { "action", { { "type", "string" }, { "enum", { "list_projects", "new_project", "open_project", "save", "new", "open" } } } },
-                 { "name", { { "type", "string" } } }, { "path", { { "type", "string" } } }, { "discard_changes", { { "type", "boolean" } } } }, { "action" }), false);
+                 { "name", { { "type", "string" } } }, { "path", { { "type", "string" } } }, { "discard_changes", { { "type", "boolean" } } },
+                 { "type", { { "type", "string" }, { "enum", { "imgui", "minecraft" } }, { "description", "Project type for new_project" } } } }, { "action" }), false);
     return tools;
 }
 
@@ -258,7 +260,7 @@ json App::McpTool(const std::string& name, const json& args)
         if (n) out["node_id"] = n->id;
         return TextResult(out.dump());
     }
-    if (name == "export_project" && args.value("target", std::string("imgui")) == "minecraft")
+    if (name == "export_project" && args.value("target", std::string(!projectDir.empty() ? ProjectTypeKey(projectType) : "imgui")) == "minecraft")
     {
         JavaOptions saved = javaOpt;
         javaOpt.outDir = args.value("out_dir", std::string());
@@ -327,10 +329,10 @@ json App::McpTool(const std::string& name, const json& args)
         {
             std::string name = args.value("name", std::string()), err;
             modified = false;
-            if (!CreateProject(name, false, &err)) return TextResult(err, true);
+            if (!CreateProject(name, false, &err, ProjectTypeFromKey(args.value("type", std::string("imgui"))))) return TextResult(err, true);
             showHome = false;
             McpLog("new project: " + name);
-            return TextResult(json{ { "project", projectDir }, { "file", filePath } }.dump());
+            return TextResult(json{ { "project", projectDir }, { "file", filePath }, { "type", ProjectTypeKey(projectType) } }.dump());
         }
         if (action == "open_project")
         {

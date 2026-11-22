@@ -174,6 +174,14 @@ void App::DrawHome()
         }
         else
             DrawLogo(gdl, ImVec2((ta.x + tb.x) * 0.5f - U(20), (ta.y + tb.y) * 0.5f - U(20)), U(40), 0.35f);
+        {
+            const char* badge = p.type == Project_Minecraft ? "Minecraft" : "ImGui";
+            float bfs = ImGui::GetFontSize() * 0.85f;
+            ImVec2 bs = fonts::UI(fonts::UI_Medium)->CalcTextSizeA(bfs, FLT_MAX, 0, badge);
+            ImVec2 ba(ta.x + U(8), ta.y + U(8)), bb(ba.x + bs.x + U(12), ba.y + bs.y + U(6));
+            gdl->AddRectFilled(ba, bb, p.type == Project_Minecraft ? IM_COL32(60, 140, 60, 230) : IM_COL32(13, 110, 200, 230), U(5));
+            gdl->AddText(fonts::UI(fonts::UI_Medium), bfs, ImVec2(ba.x + U(6), ba.y + U(3)), IM_COL32(255, 255, 255, 255), badge);
+        }
         gdl->AddRectFilled(ImVec2(cp.x, tb.y), ImVec2(cp.x + cardW, cp.y + cardH), Bg, U(10), ImDrawFlags_RoundCornersBottom);
         gdl->AddRect(cp, ImVec2(cp.x + cardW, cp.y + cardH), hov ? Accent : Border, U(10), 0, hov ? 1.5f : 1.0f);
         gdl->AddText(fonts::UI(fonts::UI_Medium), ImGui::GetFontSize() * 1.05f, ImVec2(cp.x + U(14), tb.y + U(10)), Text, p.name.c_str());
@@ -194,7 +202,7 @@ void App::DrawHome()
         ImGui::Dummy(ImVec2(0, U(60)));
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
         ImGui::Text("No projects yet in %s", WorkspaceDir().c_str());
-        ImGui::TextUnformatted("Each project is a folder with its design, fonts, images, icons, videos and C++ export.");
+        ImGui::TextUnformatted("Each project is a folder with its design, fonts, images, icons, videos and export (Dear ImGui C++ or a Minecraft mod GUI).");
         ImGui::PopStyleColor();
         ImGui::Dummy(ImVec2(0, U(8)));
         if (ui::PrimaryButton("+ Create the first project", ImVec2(U(220), 0))) { newProjectFromCurrent = false; openNewProject = true; }
@@ -204,16 +212,51 @@ void App::DrawHome()
     if (!openPath.empty()) OpenDocument(openPath);
 }
 
+// Two cards for the project type: what the design is exported to.
+static bool ProjectTypeCards(int* type, float width)
+{
+    struct Card { const char* title; const char* line1; const char* line2; };
+    static const Card cards[2] = {
+        { "Dear ImGui", "C++ menu for Dear ImGui", "DirectX 11, Win32 example host" },
+        { "Minecraft", "Java Edition 1.21.1 GUI", "Screen for Fabric or NeoForge" },
+    };
+    bool changed = false;
+    float gap = U(10), w = (width - gap) * 0.5f, h = U(64);
+    for (int i = 0; i < 2; i++)
+    {
+        if (i) ImGui::SameLine(0, gap);
+        ImGui::PushID(i);
+        ImVec2 p = ImGui::GetCursorScreenPos();
+        if (ImGui::InvisibleButton("##type", ImVec2(w, h)) && *type != i) { *type = i; changed = true; }
+        bool hov = ImGui::IsItemHovered(), sel = *type == i;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), sel ? IM_COL32(13, 153, 255, 28) : hov ? IM_COL32(255, 255, 255, 10) : IM_COL32(255, 255, 255, 4), U(8));
+        dl->AddRect(p, ImVec2(p.x + w, p.y + h), sel ? Accent : Border, U(8), 0, sel ? 1.5f : 1.0f);
+        // radio dot
+        ImVec2 c(p.x + w - U(16), p.y + U(16));
+        dl->AddCircle(c, U(6), sel ? Accent : TextFaint, 0, 1.2f);
+        if (sel) dl->AddCircleFilled(c, U(3), Accent);
+        float fs = ImGui::GetFontSize();
+        dl->AddText(fonts::UI(fonts::UI_SemiBold), fs * 1.05f, ImVec2(p.x + U(12), p.y + U(9)), Text, cards[i].title);
+        dl->AddText(fonts::UI(fonts::UI_Regular), fs * 0.92f, ImVec2(p.x + U(12), p.y + U(29)), TextDim, cards[i].line1);
+        dl->AddText(fonts::UI(fonts::UI_Regular), fs * 0.92f, ImVec2(p.x + U(12), p.y + U(44)), TextFaint, cards[i].line2);
+        ImGui::PopID();
+    }
+    return changed;
+}
+
 void App::DrawNewProjectDialog()
 {
     static char name[128];
     static std::string error;
+    static int type = Project_ImGui;
     if (openNewProject)
     {
         openNewProject = false;
         std::string suggestion = newProjectFromCurrent && doc.name != "Untitled" && !doc.name.empty() ? doc.name : SuggestName(this);
         snprintf(name, sizeof(name), "%s", suggestion.c_str());
         error.clear();
+        type = newProjectFromCurrent ? projectType : Project_ImGui;
         ImGui::OpenPopup("New project");
     }
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -223,6 +266,8 @@ void App::DrawNewProjectDialog()
     {
         float W = U(424);
         ui::Label(newProjectFromCurrent ? "Save the current design as a project" : "Create an empty project");
+        ui::Label("Type", false);
+        ProjectTypeCards(&type, W);
         ui::Label("Name", false);
         if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
         ImGui::SetNextItemWidth(W);
@@ -248,9 +293,10 @@ void App::DrawNewProjectDialog()
         if (ui::PrimaryButton("Create", ImVec2(U(120), 0)) || (enter && valid))
         {
             std::string err;
-            auto create = [this, n]() {
+            int t = type;
+            auto create = [this, n, t]() {
                 std::string e;
-                if (CreateProject(n, newProjectFromCurrent, &e)) { showHome = false; homeNeedsScan = true; Toast("Project created: " + n); }
+                if (CreateProject(n, newProjectFromCurrent, &e, t)) { showHome = false; homeNeedsScan = true; Toast("Project created: " + n); }
                 else Toast(e, true);
             };
             if (!newProjectFromCurrent && modified)
@@ -259,7 +305,7 @@ void App::DrawNewProjectDialog()
                 ImGui::CloseCurrentPopup();
                 NewDocumentConfirm(create);
             }
-            else if (CreateProject(n, newProjectFromCurrent, &err)) { showHome = false; homeNeedsScan = true; Toast("Project created: " + n); ImGui::CloseCurrentPopup(); }
+            else if (CreateProject(n, newProjectFromCurrent, &err, t)) { showHome = false; homeNeedsScan = true; Toast("Project created: " + n); ImGui::CloseCurrentPopup(); }
             else error = err;
         }
         ImGui::EndDisabled();

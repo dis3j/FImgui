@@ -506,6 +506,8 @@ void App::DrawDesignTab()
 
     if (nodes.empty())
     {
+        bool minecraft = IsMinecraft();
+        if (minecraft) DrawMinecraftPanel(W);
         ui::Section("Page");
         ImVec4 c = doc.canvasColor;
         if (ui::ColorRow("##canvas", &c, W)) { doc.canvasColor = c; MarkDirty(); }
@@ -529,9 +531,9 @@ void App::DrawDesignTab()
             ImGui::PopID();
         }
         ui::Section("Export");
-        if (ui::PrimaryButton("Export ImGui project...", ImVec2(W, U(28)))) showExport = true;
+        if (ui::PrimaryButton(minecraft ? "Export Minecraft GUI..." : "Export ImGui project...", ImVec2(W, U(28)))) showExport = true;
         ImGui::Dummy(ImVec2(0, U(6)));
-        ui::Label("Generates menu .h/.cpp, icons, images,\nfonts and an example host.");
+        ui::Label(minecraft ? "Generates the Screen, menu class, Java\nruntime, baked textures and fonts." : "Generates menu .h/.cpp, icons, images,\nfonts and an example host.");
         return;
     }
 
@@ -1316,7 +1318,13 @@ void App::DrawToolbar()
 
 void App::DrawExportDialog()
 {
-    if (showExport) { ImGui::OpenPopup("Export"); showExport = false; lastExport = ExportResult(); }
+    if (showExport)
+    {
+        ImGui::OpenPopup("Export");
+        showExport = false;
+        lastExport = ExportResult();
+        if (!projectDir.empty()) exportTarget = projectType == Project_Minecraft ? 1 : 0;   // the project type picks the target
+    }
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(U(560), 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(18), U(16)));

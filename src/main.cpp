@@ -2,6 +2,7 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 #include "app.h"
+#include "crash.h"
 #include "fonts.h"
 #include "gfx.h"
 #include "theme.h"
@@ -180,6 +181,15 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
 {
+    {
+        // --crash-report <file>: started by the crash handler of a crashed instance; shows the report only.
+        int argc = 0;
+        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        std::string report = argc >= 3 && wcscmp(argv[1], L"--crash-report") == 0 ? platform::Narrow(argv[2]) : std::string();
+        LocalFree(argv);
+        if (!report.empty()) return crash::ShowReport(report);
+    }
+    crash::Install();
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     ImGui_ImplWin32_EnableDpiAwareness();
     float dpi = ImGui_ImplWin32_GetDpiScaleForMonitor(MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
@@ -230,6 +240,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     std::string recordDir;
     int recordEvery = 2, recordTail = 150, recordIndex = 0;
     int captureFrame = 45;
+    int crashTest = -1;   // --crash-test frame: null dereference at that frame (checks the crash report)
     {
         int argc = 0;
         LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -327,13 +338,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (a == "--save") g_appInstance.deferred.push_back([] { g_appInstance.SaveDocument(false); });
             else if (a == "--project")
             {
-                // Open <workspace>/<name>, creating the project when it doesn't exist yet.
+                // Open <workspace>/<name>, creating the project when it doesn't exist yet: --project name [imgui|minecraft]
                 std::string name = next(), err;
+                int type = Project_ImGui;
+                if (i + 1 < args.size() && (args[i + 1] == "imgui" || args[i + 1] == "minecraft")) type = ProjectTypeFromKey(next());
                 std::string path = g_appInstance.WorkspaceDir() + "/" + name + "/" + ProjectFileName(name);
                 if (platform::ReadText(path, err)) g_appInstance.OpenDocument(path);
-                else if (!g_appInstance.CreateProject(name, false, &err)) OutputDebugStringA(err.c_str());
+                else if (!g_appInstance.CreateProject(name, false, &err, type)) OutputDebugStringA(err.c_str());
             }
             else if (a == "--no-embed-fonts") noEmbedFonts = true;
+            else if (a == "--crash-test") crashTest = std::atoi(next().c_str());
             else if (a == "--screenshot") screenshot = next();
             else if (a == "--frames") captureFrame = std::atoi(next().c_str());
             else if (a == "--code") g_appInstance.codeLang = std::atoi(next().c_str());
@@ -354,7 +368,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
         if (!args.empty()) g_appInstance.showHome = forceHome;
         // Automation flags (--screenshot, --ops, ...) skip the update check; opening a file by double click does not.
         if (std::none_of(args.begin(), args.end(), [](const std::string& a) { return a.rfind("--", 0) == 0; })) g_appInstance.StartupChecks();
-        if (!g_appInstance.doc.roots.empty()) g_appInstance.deferred.push_back([] { g_appInstance.ZoomToFit(false); });
+        if (!g_appInstance.doc.roots.empty()) g_appInstance.fitPending = true;
         if (zoomArg > 0)
             g_appInstance.deferred.push_back([zoomArg] {
                 // Zoom around the selection (or the canvas center) - used for screenshots.
@@ -439,6 +453,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             g_appInstance.AiSend();
         }
         g_appInstance.Frame();
+        if (frame == crashTest) *(volatile int*)nullptr = 0;
 
         ImGui::Render();
         const float clear[4] = { 0.12f, 0.12f, 0.12f, 1.0f };

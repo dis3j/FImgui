@@ -1,5 +1,6 @@
 #include "app.h"
 #include "version.h"
+#include "crash.h"
 #include "theme.h"
 #include "fonts.h"
 #include "gfx.h"
@@ -405,6 +406,8 @@ void App::NewDocument()
         doc.name = "Untitled";
         filePath.clear();
         projectDir.clear();
+        projectType = Project_ImGui;
+        crash::SetContext("");
         selection.clear();
         vars = VarStore();
         chat.clear();
@@ -426,16 +429,40 @@ void App::LoadFromJsonText(const std::string& text, const std::string& path)
     if (!isProject && j.contains("assets") && j["assets"].is_object())
         for (auto& a : j["assets"]) if (a.contains("file")) isProject = true;
     for (auto& [id, a] : doc.assets) gfx::InvalidateAsset(id);
+    crash::SetContext("Opening " + path);
     std::string err;
-    doc.FromJson(j, &err, baseDir);
-    if (!err.empty()) Toast(err, true);
-    filePath = path;
-    projectDir = isProject ? baseDir : std::string();
-    if (isProject)
+    try
     {
-        fonts::AddFontDir((fs::u8path(baseDir) / "fonts").u8string());
-        ApplyProjectExportSettings(j["project"].is_object() ? j["project"].value("export", json()) : json());
+        doc.FromJson(j, &err, baseDir);
+        filePath = path;
+        projectDir = isProject ? baseDir : std::string();
+        projectType = Project_ImGui;
+        if (isProject)
+        {
+            fonts::AddFontDir((fs::u8path(baseDir) / "fonts").u8string());
+            const json& pj = j.contains("project") && j["project"].is_object() ? j["project"] : json();
+            projectType = ProjectTypeFromKey(pj.value("type", std::string("imgui")));
+            exportTarget = projectType == Project_Minecraft ? 1 : 0;
+            ApplyProjectExportSettings(pj.value("export", json()));
+            if (projectType == Project_Minecraft) ApplyProjectJavaSettings(pj.value("minecraft", json()));
+        }
     }
+    catch (const std::exception& e)
+    {
+        // A file written by another version with a value of an unexpected type: report it instead of crashing.
+        doc.Clear();
+        doc.name = "Untitled";
+        filePath.clear();
+        projectDir.clear();
+        projectType = Project_ImGui;
+        ResetHistory();
+        modified = false;
+        crash::SetContext("");
+        Toast("Cannot open " + fs::u8path(path).filename().u8string() + ": " + e.what(), true);
+        return;
+    }
+    if (!err.empty()) Toast(err, true);
+    crash::SetContext("Editing " + path);
     AddRecent(path);
     showHome = false;
     if (doc.name.empty() || doc.name == "Untitled") doc.name = fs::u8path(path).stem().u8string();
@@ -443,7 +470,7 @@ void App::LoadFromJsonText(const std::string& text, const std::string& path)
     vars = VarStore();
     ResetHistory();
     modified = false;
-    deferred.push_back([this] { ZoomToFit(false); });
+    fitPending = true;
     Toast("Opened " + (isProject ? fs::u8path(baseDir).filename().u8string() : fs::u8path(path).filename().u8string()));
 }
 

@@ -42,7 +42,7 @@ namespace fim
         static ID3D11PixelShader* g_psBlur = nullptr;
         static ID3D11PixelShader* g_psComposite = nullptr;
         static ID3D11PixelShader* g_psBlend[Blend_Count] = {};
-        static ID3D11BlendState* g_blend[4] = {};
+        static ID3D11BlendState* g_blend[Blend_Count] = {};
         static ID3D11Buffer* g_cbBlur = nullptr;
         static ID3D11Buffer* g_cbComposite = nullptr;
         static ID3D11SamplerState* g_sampClamp = nullptr;

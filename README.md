@@ -83,10 +83,15 @@ C:\FImgui\
 ```
 
 - **Projects** (Ctrl+Shift+O, открывается при запуске): сетка проектов с превью, поиск, «+ New project», недавние файлы.
+- При создании проекта выбирается тип: **Dear ImGui** (C++ меню) или **Minecraft** (GUI для Java Edition 1.21.1). Тип виден на карточке и в заголовке окна, от него зависит, куда по умолчанию экспортирует Export; новый Minecraft-проект сразу содержит фрейм-экран и открывается в редакторе Minecraft (см. «Экспорт в Minecraft»); у Minecraft-проекта настройки мода (loader, mod id, пакет) хранятся в самом проекте. Старые проекты открываются как Dear ImGui.
 - **Ctrl+N** создаёт новый проект. **Ctrl+S** у несохранённого дизайна предлагает сохранить его как проект, у проекта — сохраняет папку целиком.
 - Папку проекта можно скопировать на другой компьютер: шрифты проекта регистрируются при открытии, ассеты читаются из файлов.
 - «Save as single file» сохраняет автономный `.fimgui` со встроенными ассетами, как раньше.
-- MCP-инструмент `document_file` умеет `list_projects`, `new_project` и `open_project`.
+- MCP-инструмент `document_file` умеет `list_projects`, `new_project` (с `type`: `imgui` или `minecraft`) и `open_project`.
+
+### Если Fimgui упал
+
+Отчёт сохраняется в `crashlogs\crash_<дата>.txt` (и `.dmp`) рядом с `Fimgui.exe`, а Fimgui открывает окно с этим отчётом — без системного диалога и звука. В окне: «Copy report», «Open folder», «Restart Fimgui». В отчёте — ошибка, что делалось (например, какой файл открывался) и стек вызовов; имена функций берутся из `Fimgui.pdb`, который лежит рядом с exe.
 
 ## Возможности
 
@@ -237,6 +242,8 @@ if (state.Save_config_pressed) SaveConfig();
 
 ## Экспорт в Minecraft (Java)
 
+В Minecraft-проекте редактор показывает меню так, как его увидит игрок: первый фрейм верхнего уровня стоит посреди игрового экрана (размытый мир и затемнение), 1 px дизайна = 1 GUI px. На вкладке **Design** (без выделения) в разделе **Minecraft screen** выбираются размер окна и **GUI scale** (Auto считается как в игре). Если меню не помещается, редактор показывает, во сколько раз игра его уменьшит. **Fit screen** показывает весь экран, **Actual size** — меню в реальном размере на мониторе. Там же раздел **Mod** (loader, mod id, пакет, класс, разрешение текстур, TTF-шрифты) и список **In game**: слои, которые в игре будут выглядеть иначе (blur / glass без мира за ними, первый кадр GIF и видео, не-TTF шрифты). Клик по пункту выделяет слой.
+
 В окне **Export** выберите **Minecraft Java**, загрузчик (**Fabric 1.21.1** с именами Yarn или **NeoForge 1.21.1** с именами Mojang), mod id и Java-пакет. Экспортируется первый фрейм верхнего уровня:
 
 ```
@@ -285,7 +292,8 @@ if (state.Save_config_pressed) SaveConfig();
 ```
 Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--preview] [--click id|@x,y frame [dy]]
            [--tab 0..4] [--import media x y] [--export dir] [--no-embed-fonts] [--screenshot out.png --frames N]
-           [--workspace dir] [--project Name] [--save] [--home] [--ui-scale 1.25] [--check-updates]
+           [--workspace dir] [--project Name [imgui|minecraft]] [--save] [--home] [--ui-scale 1.25] [--check-updates]
+           [--crash-test frame]
            [--export-java dir [fabric|neoforge]] [--timeline seconds]
            [--ops-stream ops.jsonl [framesPerOp]] [--record dir [every] [tail]]
            [--ai "запрос" --ai-base URL --ai-key KEY] [--mcp-port N]

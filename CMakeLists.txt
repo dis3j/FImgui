@@ -19,12 +19,14 @@ add_subdirectory(third_party/freetype EXCLUDE_FROM_ALL)
 
 add_executable(Fimgui WIN32
     src/main.cpp
+    src/crash.cpp
     resources/fimgui.rc
     src/app.cpp
     src/ui_canvas.cpp
     src/ui_panels.cpp
     src/ui_ai.cpp
     src/ui_motion.cpp
+    src/ui_minecraft.cpp
     src/ui_home.cpp
     src/ui_chrome.cpp
     src/ui_timeline.cpp
@@ -63,6 +65,9 @@ target_link_libraries(Fimgui PRIVATE freetype d3d11 dxgi d3dcompiler dwmapi winh
 
 if(MSVC)
     target_compile_options(Fimgui PRIVATE /utf-8 /bigobj /W3 /MP)
+    # Release keeps a PDB next to the exe: crash reports (src/crash.cpp) show function names and lines.
+    target_compile_options(Fimgui PRIVATE $<$<CONFIG:Release>:/Zi>)
+    target_link_options(Fimgui PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
     set_property(TARGET Fimgui PROPERTY VS_DEBUGGER_WORKING_DIRECTORY $<TARGET_FILE_DIR:Fimgui>)
 endif()
 

@@ -1113,6 +1113,11 @@ void App::DrawCanvas()
     canvasMin = ImGui::GetWindowPos();
     canvasMax = ImVec2(canvasMin.x + ImGui::GetWindowWidth(), canvasMin.y + ImGui::GetWindowHeight());
     ImVec2 size = canvasMax - canvasMin;
+    if (fitPending && size.x > 0 && size.y > 0)
+    {
+        fitPending = false;
+        if (IsMinecraft()) McFitScreen(); else ZoomToFit(false);
+    }
 
     dl->AddRectFilled(canvasMin, canvasMax, ImGui::ColorConvertFloat4ToU32(doc.canvasColor));
 
@@ -1148,6 +1153,7 @@ void App::DrawCanvas()
     }
 
     dl->PushClipRect(canvasMin, canvasMax, true);
+    DrawMinecraftScreen(dl);
     RenderCtx ctx;
     ctx.dl = dl;
     ctx.origin = WorldToScreen(ImVec2(0, 0));

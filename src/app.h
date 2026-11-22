@@ -36,10 +36,16 @@ struct Guide { bool vertical; float pos; float from, to; };
 struct ProjectEntry
 {
     std::string name, dir, file;
+    int type = 0;                // ProjectType
     long long modified = 0;      // unix time
     ImTextureID thumb = 0;
     int thumbW = 0, thumbH = 0;
 };
+
+// What a project is made for: chosen when it is created, decides the default export target.
+enum ProjectType { Project_ImGui = 0, Project_Minecraft = 1 };
+const char* ProjectTypeKey(int type);           // "imgui" / "minecraft"
+int ProjectTypeFromKey(const std::string& key);
 
 std::string ProjectFileName(const std::string& name);           // "Project_A" -> "projecta.fimgui"
 bool ValidProjectName(const std::string& name, std::string* err);
@@ -60,7 +66,22 @@ public:
     std::vector<std::string> selection;
     std::string filePath;
     std::string projectDir;      // set when the design lives in a project folder
+    int projectType = Project_ImGui;
+    bool IsMinecraft() const { return !projectDir.empty() && projectType == Project_Minecraft; }
     bool modified = false;
+
+    // ---- Minecraft projects (ui_minecraft.cpp): the menu frame inside a game window
+    bool mcScreenShown = true;
+    int mcWindow = 3;                  // window size preset (1920 x 1080)
+    int mcGuiScale = 0;                // 0 auto, like the game
+    bool fitPending = false;           // fit the view once the canvas has a size
+    Node* McMenuFrame();               // the first top-level frame: the exported Screen
+    void McScreen(int* guiW, int* guiH, int* scale);
+    float McFit(Node* menu);
+    bool McScreenRect(ImVec2* a, ImVec2* b);
+    void McFitScreen();
+    void DrawMinecraftScreen(ImDrawList* dl);
+    void DrawMinecraftPanel(float W);
 
     // ---- projects (workspace/<Name>/<name>.fimgui + fonts/ images/ icons/ videos/ export/)
     std::string workspace = "C:/FImgui";
@@ -69,11 +90,12 @@ public:
     std::vector<std::string> recentFiles;
     std::vector<ProjectEntry> projects;
     std::string WorkspaceDir() const;
-    bool CreateProject(const std::string& name, bool fromCurrent, std::string* err);
+    bool CreateProject(const std::string& name, bool fromCurrent, std::string* err, int type = Project_ImGui);
     void SaveProject();
     void ScanProjects();
     void AddRecent(const std::string& path);
     void ApplyProjectExportSettings(const json& j);
+    void ApplyProjectJavaSettings(const json& j);
     void OpenHome() { showHome = true; homeNeedsScan = true; }
     bool homeNeedsScan = true;
     bool openNewProject = false;

@@ -1,6 +1,7 @@
 // Projects: a workspace folder (default C:/FImgui) with one folder per project:
 //   <workspace>/<Name>/<name>.fimgui, fonts/, images/, icons/, videos/, export/, thumbnail.png
 #include "app.h"
+#include "crash.h"
 #include "exporters.h"
 #include "fonts.h"
 #include "gfx.h"
@@ -18,6 +19,9 @@ std::string App::WorkspaceDir() const
 {
     return workspace.empty() ? std::string("C:/FImgui") : workspace;
 }
+
+const char* ProjectTypeKey(int type) { return type == Project_Minecraft ? "minecraft" : "imgui"; }
+int ProjectTypeFromKey(const std::string& key) { return key == "minecraft" ? Project_Minecraft : Project_ImGui; }
 
 std::string ProjectFileName(const std::string& name)
 {
@@ -57,13 +61,42 @@ static std::string AssetRelPath(const Asset& a)
     }
 }
 
+// Output folders inside the project are stored relative to it.
+static std::string ProjectRelative(const std::string& path, const std::string& projectDir)
+{
+    std::error_code ec;
+    fs::path rel = fs::relative(fs::u8path(path), fs::u8path(projectDir), ec);
+    return !ec && !rel.empty() && rel.native().find(L"..") != 0 ? rel.generic_u8string() : path;
+}
+
+static std::string ProjectAbsolute(const std::string& path, const std::string& projectDir)
+{
+    fs::path p = fs::u8path(path);
+    return (p.is_absolute() ? p : fs::u8path(projectDir) / p).u8string();
+}
+
 static json ExportJson(const ExportOptions& o, const std::string& projectDir)
 {
-    std::string out = o.outDir;
-    std::error_code ec;
-    fs::path rel = fs::relative(fs::u8path(o.outDir), fs::u8path(projectDir), ec);
-    if (!ec && !rel.empty() && rel.native().find(L"..") != 0) out = rel.generic_u8string();
-    return { { "outDir", out }, { "namespace", o.ns }, { "fileBase", o.fileBase }, { "embedFonts", o.embedFonts }, { "writeExample", o.writeExample }, { "iconScale", o.iconScale } };
+    return { { "outDir", ProjectRelative(o.outDir, projectDir) }, { "namespace", o.ns }, { "fileBase", o.fileBase }, { "embedFonts", o.embedFonts }, { "writeExample", o.writeExample }, { "iconScale", o.iconScale } };
+}
+
+static json JavaJson(const JavaOptions& o, const std::string& projectDir)
+{
+    return { { "outDir", ProjectRelative(o.outDir, projectDir) }, { "loader", o.loader == 1 ? "neoforge" : "fabric" }, { "modId", o.modId }, { "package", o.package },
+             { "className", o.className }, { "textureScale", o.textureScale }, { "ttfFonts", o.ttfFonts } };
+}
+
+// Minecraft mod ids (and Java package segments): lowercase letters, digits and _, starting with a letter.
+static std::string ModIdFromName(const std::string& name)
+{
+    std::string id;
+    for (unsigned char c : name)
+        id += c < 128 && isalnum(c) ? (char)tolower(c) : '_';
+    while (id.find("__") != std::string::npos) id.erase(id.find("__"), 1);
+    while (!id.empty() && id.back() == '_') id.pop_back();
+    while (!id.empty() && id[0] == '_') id.erase(0, 1);
+    if (id.empty() || !isalpha((unsigned char)id[0])) id = "menu" + (id.empty() ? std::string() : "_" + id);
+    return id.substr(0, 64);
 }
 
 void App::ApplyProjectExportSettings(const json& j)
@@ -74,9 +107,7 @@ void App::ApplyProjectExportSettings(const json& j)
     std::transform(exportOpt.ns.begin(), exportOpt.ns.end(), exportOpt.ns.begin(), ::tolower);
     exportOpt.fileBase = "menu";
     if (!j.is_object()) return;
-    std::string out = j.value("outDir", std::string("export"));
-    fs::path p = fs::u8path(out);
-    exportOpt.outDir = (p.is_absolute() ? p : fs::u8path(projectDir) / p).u8string();
+    exportOpt.outDir = ProjectAbsolute(j.value("outDir", std::string("export")), projectDir);
     exportOpt.ns = j.value("namespace", exportOpt.ns);
     exportOpt.fileBase = j.value("fileBase", exportOpt.fileBase);
     exportOpt.embedFonts = j.value("embedFonts", exportOpt.embedFonts);
@@ -84,7 +115,34 @@ void App::ApplyProjectExportSettings(const json& j)
     exportOpt.iconScale = j.value("iconScale", exportOpt.iconScale);
 }
 
-bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* err)
+void App::ApplyProjectJavaSettings(const json& j)
+{
+    std::string id = ModIdFromName(fs::u8path(projectDir).filename().u8string());
+    javaOpt.outDir = (fs::u8path(projectDir) / "export").u8string();
+    javaOpt.modId = id;
+    javaOpt.package = "com.example." + id + ".client.gui";
+    javaOpt.className.clear();
+    mcScreenShown = true;
+    mcWindow = 3;
+    mcGuiScale = 0;
+    if (!j.is_object()) return;
+    json screen = j.value("screen", json());
+    if (screen.is_object())
+    {
+        mcScreenShown = screen.value("show", mcScreenShown);
+        mcWindow = std::clamp(screen.value("window", mcWindow), 0, 5);
+        mcGuiScale = std::clamp(screen.value("guiScale", mcGuiScale), 0, 6);
+    }
+    javaOpt.outDir = ProjectAbsolute(j.value("outDir", std::string("export")), projectDir);
+    javaOpt.loader = j.value("loader", std::string("fabric")) == "neoforge" ? 1 : 0;
+    javaOpt.modId = j.value("modId", javaOpt.modId);
+    javaOpt.package = j.value("package", javaOpt.package);
+    javaOpt.className = j.value("className", javaOpt.className);
+    javaOpt.textureScale = j.value("textureScale", javaOpt.textureScale);
+    javaOpt.ttfFonts = j.value("ttfFonts", javaOpt.ttfFonts);
+}
+
+bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* err, int type)
 {
     if (!ValidProjectName(name, err)) return false;
     fs::path dir = fs::u8path(WorkspaceDir()) / fs::u8path(name);
@@ -110,7 +168,20 @@ bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* 
     doc.name = name;
     projectDir = dir.u8string();
     filePath = (dir / ProjectFileName(name)).u8string();
+    projectType = type;
+    exportTarget = type == Project_Minecraft ? 1 : 0;
     ApplyProjectExportSettings(json());
+    if (type == Project_Minecraft) ApplyProjectJavaSettings(json());
+    if (type == Project_Minecraft && !fromCurrent)
+    {
+        // A starter screen: small enough for GUI scale 4 at 1920 x 1080 (480 x 270 GUI px).
+        Node* f = CreateNode(NodeType::Frame, ImVec2(0, 0), ImVec2(256, 176), nullptr);
+        f->name = name;
+        f->fill = Paint{ 1, ImVec4(0.09f, 0.09f, 0.11f, 0.94f) };
+        for (float& r : f->radius) r = 6;
+        fitPending = true;
+    }
+    crash::SetContext("Editing " + filePath);
     SaveProject();
     ResetHistory();
     AddRecent(filePath);
@@ -161,7 +232,12 @@ void App::SaveProject()
     });
 
     json j = doc.ToJson(true, true);
-    j["project"] = { { "version", 1 }, { "export", ExportJson(exportOpt, projectDir) } };
+    j["project"] = { { "version", 1 }, { "type", ProjectTypeKey(projectType) }, { "export", ExportJson(exportOpt, projectDir) } };
+    if (projectType == Project_Minecraft)
+    {
+        j["project"]["minecraft"] = JavaJson(javaOpt, projectDir);
+        j["project"]["minecraft"]["screen"] = { { "show", mcScreenShown }, { "window", mcWindow }, { "guiScale", mcGuiScale } };
+    }
     if (!platform::WriteText(filePath, j.dump(1))) { Toast("Save failed", true); return; }
     modified = false;
     Toast("Saved to " + fs::u8path(projectDir).filename().u8string());
@@ -207,6 +283,13 @@ void App::ScanProjects()
             for (auto& f : fs::directory_iterator(e.path(), ec))
                 if (f.path().extension() == ".fimgui") { pe.file = f.path().u8string(); break; }
         if (pe.file.empty()) continue;
+        std::string text;
+        if (platform::ReadText(pe.file, text))
+        {
+            json j = json::parse(text, nullptr, false);
+            if (j.is_object() && j.contains("project") && j["project"].is_object() && j["project"].contains("type") && j["project"]["type"].is_string())
+                pe.type = ProjectTypeFromKey(j["project"]["type"].get<std::string>());
+        }
         auto t = fs::last_write_time(fs::u8path(pe.file), ec);
         // MSVC's file clock counts from 1601-01-01; convert to Unix time for display.
         pe.modified = (long long)std::chrono::duration_cast<std::chrono::seconds>(t.time_since_epoch()).count() - 11644473600LL;
