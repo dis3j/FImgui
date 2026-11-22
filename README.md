@@ -20,6 +20,30 @@ build\Release\Fimgui.exe examples\demo_menu.fimgui
 
 Все зависимости лежат в `third_party/`: Dear ImGui (ветка docking, 1.93), nanosvg, stb_image, nlohmann/json. Шрифт Inter (лицензия OFL) лежит в `resources/fonts`. После сборки рядом с exe копируются `runtime/` (его экспортёр кладёт в каждый проект) и `resources/`.
 
+## Установка и обновления
+
+Готовые сборки лежат в [Releases](https://github.com/dis3j/FImgui/releases): скачайте `FImgui-vX.Y.Z-win64.zip`, распакуйте и запустите `Fimgui.exe`.
+
+При запуске Fimgui проверяет последний релиз на GitHub. Если вышла новая версия, появится окно с её патчноутом и кнопкой **Download on GitHub** — откроется страница релиза, архив скачивается оттуда. Можно нажать «Later» или «Skip this version». Проверить вручную: **Help → Check for updates**. После обновления один раз показывается окно **What's new**, потом его можно открыть через Help.
+
+### Как выпускается релиз
+
+У каждой версии обязателен патчноут.
+
+1. Поднимите `FIMGUI_VERSION` в `src/version.h`.
+2. Добавьте в [CHANGELOG.md](CHANGELOG.md) раздел `## X.Y.Z` с описанием изменений.
+3. Запушьте тег: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+Workflow `.github/workflows/release.yml` проверяет, что тег совпадает с версией и патчноут есть, собирает проект и публикует релиз с архивом; текст раздела CHANGELOG становится описанием релиза. Без патчноута или при ошибке сборки релиз не публикуется. Workflow `build.yml` собирает каждый пуш в main и тоже требует патчноут для текущей версии.
+
+Форк может направить проверку обновлений на свой репозиторий через переменную окружения `FIMGUI_UPDATE_REPO=owner/repo`.
+
+## Интерфейс
+
+- Свой заголовок окна вместо системного: логотип (открывает Projects), меню **File / Edit / View / Help**, название проекта, кнопки окна. Перетаскивание за пустое место, двойной клик разворачивает окно, работают Aero Snap и ресайз за края.
+- Размер интерфейса: **View → Interface scale** (100–175%, по умолчанию 115%).
+- Панель Design устроена как в Figma: подписи над полями, разделы Position, Layout, Appearance, Typography, Fill, Stroke, Effects, Export. У Fill и Stroke есть «глаз» — заливку или обводку можно скрыть, не удаляя; эффекты показаны списком и раскрываются по клику.
+
 ## Проекты
 
 Все проекты лежат в рабочей папке — по умолчанию `C:\FImgui`, путь меняется на экране Projects. Каждый проект — отдельная папка:
@@ -204,6 +228,7 @@ if (state.Save_config_pressed) SaveConfig();
 | Ctrl+Shift+C | Копировать как PNG |
 | Ctrl+Enter, Ctrl+I, Ctrl+E | Preview, AI, Export |
 | Ctrl+Shift+O, Ctrl+N, Ctrl+S | Projects, новый проект, сохранить |
+| Alt+F4 | Выход |
 | Shift+' / Ctrl+Shift+' / Ctrl+Alt+Y | Пиксельная сетка / привязка к пикселям / Pixel preview |
 
 ## Командная строка
@@ -211,11 +236,13 @@ if (state.Save_config_pressed) SaveConfig();
 Для автоматизации и проверок:
 
 ```
-Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--preview] [--click id frame [dy]]
+Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--preview] [--click id|@x,y frame [dy]]
            [--tab 0..4] [--import media x y] [--export dir] [--no-embed-fonts] [--screenshot out.png --frames N]
-           [--workspace dir] [--project Name] [--save] [--home]
+           [--workspace dir] [--project Name] [--save] [--home] [--ui-scale 1.25] [--check-updates]
            [--ai "запрос" --ai-base URL --ai-key KEY] [--mcp-port N]
 ```
+
+С флагами `--...` проверка обновлений при запуске не выполняется (кроме `--check-updates`).
 
 Файлы `examples/demo_menu.jsonl` и `examples/glass_demo.jsonl` — примеры потока операций в том формате, в котором отвечает модель. `examples/glass_demo.fimgui` — витрина стекла, blur, зерна и анимаций.
 
@@ -239,8 +266,9 @@ Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--p
 ## Структура
 
 ```
-src/        редактор: app, project, ui_home, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
-tools/      fimgui-mcp: stdio-мост для MCP-клиентов; make_logo.py — генератор логотипа (SVG, PNG, ICO)
+src/        редактор: app, project, ui_home, ui_chrome (заголовок, меню, обновления), updater, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
+tools/      fimgui-mcp: stdio-мост для MCP-клиентов; make_logo.py — генератор логотипа (SVG, PNG, ICO); patch_notes.py — патчноут версии из CHANGELOG
+.github/    workflows: build (проверка сборки) и release (релиз по тегу vX.Y.Z)
 runtime/    fimgui_runtime (рендер, анимации, GIF) и fimgui_fx (blur, glass, blend, видео) — общие для редактора и экспорта
 third_party/, resources/fonts, examples/
 ```

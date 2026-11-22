@@ -22,6 +22,13 @@ namespace platform
     void OpenUrl(const std::string& url);
     void SetWindowTitle(const std::string& title);
 
+    // Main window (custom title bar)
+    void MinimizeWindow();
+    void ToggleMaximizeWindow();
+    bool IsWindowMaximized();
+    void CloseMainWindow();
+    void StartWindowDrag();
+
     // Clipboard
     bool SetClipboardText(const std::string& utf8);
     std::string GetClipboardText();

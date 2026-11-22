@@ -1,0 +1,48 @@
+# Publishes a GitHub release when a tag vX.Y.Z is pushed.
+# Gates: the tag matches FIMGUI_VERSION in src/version.h, CHANGELOG.md has patch notes for it, and the build succeeds.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version and patch notes
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $m = Select-String -Path src/version.h -Pattern 'FIMGUI_VERSION "([^"]+)"'
+          $ver = $m.Matches[0].Groups[1].Value
+          if ($ver -ne $tag) { throw "Tag v$tag does not match FIMGUI_VERSION $ver in src/version.h" }
+          python tools/patch_notes.py $tag | Out-File -FilePath notes.md -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw "Patch notes for $tag are missing in CHANGELOG.md" }
+          Get-Content notes.md
+
+      - name: Build
+        run: |
+          cmake -S . -B build -A x64
+          cmake --build build --config Release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "FImgui-${{ github.ref_name }}-win64"
+          New-Item -ItemType Directory -Path $out | Out-Null
+          Copy-Item build/Release/* $out -Recurse
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md, CHANGELOG.md, README.md $out
+          Compress-Archive -Path "$out/*" -DestinationPath "$out.zip"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: FImgui ${{ github.ref_name }}
+          body_path: notes.md
+          files: FImgui-${{ github.ref_name }}-win64.zip

@@ -1,0 +1,23 @@
+# Build check for every push and pull request.
+name: Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch notes for the current version
+        shell: pwsh
+        run: |
+          $m = Select-String -Path src/version.h -Pattern 'FIMGUI_VERSION "([^"]+)"'
+          python tools/patch_notes.py $m.Matches[0].Groups[1].Value | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "CHANGELOG.md has no section for the version in src/version.h" }
+      - name: Build
+        run: |
+          cmake -S . -B build -A x64
+          cmake --build build --config Release

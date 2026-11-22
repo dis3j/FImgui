@@ -19,6 +19,48 @@ namespace http
         return buf;
     }
 
+    Result Get(const std::string& url, const Headers& headers, std::string* body)
+    {
+        Result r;
+        body->clear();
+        std::wstring wurl = platform::Widen(url);
+        URL_COMPONENTS uc = {};
+        uc.dwStructSize = sizeof(uc);
+        wchar_t host[256] = {}, path[2048] = {};
+        uc.lpszHostName = host; uc.dwHostNameLength = 256;
+        uc.lpszUrlPath = path; uc.dwUrlPathLength = 2048;
+        if (!WinHttpCrackUrl(wurl.c_str(), 0, 0, &uc)) { r.error = "Invalid URL: " + url; return r; }
+        Handle session, connect, request;
+        session.h = WinHttpOpen(L"Fimgui/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!session.h) { r.error = LastError("WinHttpOpen"); return r; }
+        WinHttpSetTimeouts(session.h, 10000, 10000, 15000, 15000);
+        connect.h = WinHttpConnect(session.h, host, uc.nPort, 0);
+        if (!connect.h) { r.error = LastError("WinHttpConnect"); return r; }
+        request.h = WinHttpOpenRequest(connect.h, L"GET", path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, uc.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
+        if (!request.h) { r.error = LastError("WinHttpOpenRequest"); return r; }
+        std::wstring hdr;
+        for (auto& [k, v] : headers) hdr += platform::Widen(k + ": " + v + "\r\n");
+        if (!WinHttpSendRequest(request.h, hdr.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : hdr.c_str(), (DWORD)-1, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
+            !WinHttpReceiveResponse(request.h, nullptr))
+        {
+            r.error = LastError("Request");
+            return r;
+        }
+        DWORD status = 0, sz = sizeof(status);
+        WinHttpQueryHeaders(request.h, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &status, &sz, WINHTTP_NO_HEADER_INDEX);
+        r.status = (int)status;
+        for (;;)
+        {
+            DWORD avail = 0;
+            if (!WinHttpQueryDataAvailable(request.h, &avail) || avail == 0) break;
+            std::string chunk(avail, 0);
+            DWORD rd = 0;
+            if (!WinHttpReadData(request.h, chunk.data(), avail, &rd) || rd == 0) break;
+            body->append(chunk.data(), rd);
+        }
+        return r;
+    }
+
     Result PostStream(const std::string& url, const Headers& headers, const std::string& body,
                       const std::function<bool(const char*, size_t)>& onData, std::atomic<bool>* cancel)
     {

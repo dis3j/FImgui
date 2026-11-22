@@ -171,27 +171,61 @@ namespace ui
         return changed;
     }
 
-    int Section(const char* title, int button)
+    int Section(const char* title, int button, Icon extra, const char* extraTip)
     {
         int res = 0;
-        ImGui::Dummy(ImVec2(0, U(4)));
+        ImGui::Dummy(ImVec2(0, U(6)));
         ImVec2 p = ImGui::GetCursorScreenPos();
         float w = ImGui::GetContentRegionAvail().x;
-        ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x - U(12), p.y), ImVec2(p.x + w + U(12), p.y), Divider);
-        ImGui::Dummy(ImVec2(0, U(8)));
-        ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), 0.0f);
+        ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x - U(16), p.y), ImVec2(p.x + w + U(16), p.y), Divider);
+        ImGui::Dummy(ImVec2(0, U(10)));
+        float x0 = ImGui::GetCursorPosX();
+        ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), ImGui::GetStyle().FontSizeBase + 1.0f);
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(title);
         ImGui::PopFont();
+        float fh = ImGui::GetFrameHeight();
+        ImGui::PushID(title);
+        if ((int)extra >= 0)
+        {
+            ImGui::SameLine(x0 + w - fh * (button ? 2 : 1) - (button ? U(4) : 0));
+            if (IconButton("##secextra", extra, false, 0, extraTip)) res = 2;
+        }
         if (button)
         {
-            ImGui::SameLine(w - ImGui::GetFrameHeight() + ImGui::GetStyle().WindowPadding.x * 0);
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX());
-            ImGui::PushID(title);
+            ImGui::SameLine(x0 + w - fh);
             if (IconButton("##secbtn", button > 0 ? Icon::Plus : Icon::Minus)) res = button;
-            ImGui::PopID();
         }
+        ImGui::PopID();
+        ImGui::Dummy(ImVec2(0, U(2)));
         return res;
+    }
+
+    void SubLabel(const char* text, float x)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+        ImGui::PushFont(fonts::UI(fonts::UI_Medium), ImGui::GetStyle().FontSizeBase - 1.0f);
+        if (x > 0) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + x);
+        ImGui::TextUnformatted(text);
+        ImGui::PopFont();
+        ImGui::PopStyleColor();
+    }
+
+    void SubLabels(const char* a, const char* b, float secondX)
+    {
+        float x0 = ImGui::GetCursorPosX();
+        ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+        ImGui::PushFont(fonts::UI(fonts::UI_Medium), ImGui::GetStyle().FontSizeBase - 1.0f);
+        ImGui::TextUnformatted(a);
+        ImGui::SameLine(x0 + secondX);
+        ImGui::TextUnformatted(b);
+        ImGui::PopFont();
+        ImGui::PopStyleColor();
+    }
+
+    void IconGroupBg(ImVec2 pos, float width)
+    {
+        ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + ImGui::GetFrameHeight()), Field, ImGui::GetStyle().FrameRounding);
     }
 
     bool Segmented(const char* id, int* value, const char* const* labels, int count, float width)

@@ -13,6 +13,7 @@
 #include <cmath>
 #include <filesystem>
 #include <functional>
+#include <map>
 
 namespace fs = std::filesystem;
 using namespace theme;
@@ -39,15 +40,34 @@ static std::string ImportTextureFile(Document& doc, const std::string& path)
     return AddAsset(doc, IsGif(bytes) ? 2 : 0, name, bytes);
 }
 
-// Row header for an active effect; returns true when the remove button was pressed.
-static bool EffectHeader(const char* label, const char* id)
+// Row for an active effect: a pill with the effect name (click to show its settings) and a remove button.
+// Returns -1 when removed, 1 when the settings are expanded, 0 when collapsed.
+static int EffectHeader(const char* label, const char* id)
 {
+    static std::map<std::string, bool> expanded;
     float W = ui::Avail();
-    ImGui::PushFont(fonts::UI(fonts::UI_Medium), 0.0f);
-    ui::Label(label, false);
-    ImGui::PopFont();
-    ImGui::SameLine(W - ImGui::GetFrameHeight() + ImGui::GetStyle().WindowPadding.x * 0);
-    return IconButton(id, Icon::Minus);
+    float fh = ImGui::GetFrameHeight();
+    float pillW = W - fh - U(8);
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImGui::PushID(label);
+    bool& open = expanded[label];
+    if (ImGui::InvisibleButton("##pill", ImVec2(pillW, fh))) open = !open;
+    bool hov = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    float r = ImGui::GetStyle().FrameRounding;
+    dl->AddRect(p, ImVec2(p.x + pillW, p.y + fh), hov || open ? IM_COL32(255, 255, 255, 60) : Border, r);
+    ImVec2 c(p.x + fh * 0.5f + U(2), p.y + fh * 0.5f);
+    dl->AddCircle(c, U(6), Text, 20, 1.2f);
+    dl->AddCircleFilled(ImVec2(c.x - U(1.5f), c.y - U(1.5f)), U(3), IM_COL32(255, 255, 255, 120));
+    ImVec2 ts = ImGui::CalcTextSize(label);
+    dl->AddText(ImVec2(p.x + fh + U(6), p.y + (fh - ts.y) * 0.5f), Text, label);
+    DrawIcon(dl, open ? Icon::ChevronDown : Icon::ChevronRight, ImVec2(p.x + pillW - U(14), p.y + fh * 0.5f), U(9), hov ? Text : TextDim);
+    ImGui::SameLine(0, U(8));
+    bool rm = IconButton(id, Icon::Minus, false, 0, "Remove effect");
+    ImGui::PopID();
+    if (rm) return -1;
+    if (open) ImGui::Dummy(ImVec2(0, U(2)));
+    return open ? 1 : 0;
 }
 
 void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
@@ -108,8 +128,8 @@ void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
     if (n->effect.type)
     {
         ImGui::PushID("shadow");
-        if (EffectHeader(n->effect.type == 1 ? "Drop shadow" : "Inner shadow", "##rm")) { for (Node* q : nodes) q->effect.type = 0; MarkDirty(); }
-        else
+        int eh = EffectHeader(n->effect.type == 1 ? "Drop shadow" : "Inner shadow", "##rm"); if (eh < 0) { for (Node* q : nodes) q->effect.type = 0; MarkDirty(); }
+        else if (eh > 0)
         {
             bool ec = false;
             int t = n->effect.type - 1;
@@ -132,8 +152,8 @@ void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
     if (n->blur.on && backdropOk && !n->glass.on)
     {
         ImGui::PushID("blur");
-        if (EffectHeader("Background blur", "##rm")) { for (Node* q : nodes) q->blur.on = false; MarkDirty(); }
-        else
+        int eh = EffectHeader("Background blur", "##rm"); if (eh < 0) { for (Node* q : nodes) q->blur.on = false; MarkDirty(); }
+        else if (eh > 0)
         {
             if (ui::NumField("radius", "", &n->blur.radius, half, 0.5f, 0, 200, nullptr, Icon::Ellipse)) { for (Node* q : nodes) q->blur = n->blur; MarkDirty(); }
             ImGui::SameLine(0, U(8));
@@ -150,8 +170,8 @@ void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
     if (n->glass.on && backdropOk)
     {
         ImGui::PushID("glass");
-        if (EffectHeader("Glass", "##rm")) { for (Node* q : nodes) q->glass.on = false; MarkDirty(); }
-        else
+        int eh = EffectHeader("Glass", "##rm"); if (eh < 0) { for (Node* q : nodes) q->glass.on = false; MarkDirty(); }
+        else if (eh > 0)
         {
             GlassFx& g = n->glass;
             bool gc = false;
@@ -198,8 +218,8 @@ void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
     if (n->texture.on && textureOk)
     {
         ImGui::PushID("texture");
-        if (EffectHeader("Texture overlay", "##rm")) { for (Node* q : nodes) q->texture.on = false; MarkDirty(); }
-        else
+        int eh = EffectHeader("Texture overlay", "##rm"); if (eh < 0) { for (Node* q : nodes) q->texture.on = false; MarkDirty(); }
+        else if (eh > 0)
         {
             TextureFx& t = n->texture;
             bool tc = false;

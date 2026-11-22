@@ -163,19 +163,7 @@ void App::DrawLeftPanel()
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(U(6), U(6)));
 
     // Header: menu + document name
-    ImGui::SetCursorPos(ImVec2(U(8), U(8)));
-    {
-        // Logo + chevron opens the main menu (like the app menu in design tools).
-        ImVec2 p = ImGui::GetCursorScreenPos();
-        if (ImGui::InvisibleButton("##mainmenu", ImVec2(U(40), U(28)))) openMainMenu = true;
-        bool hov = ImGui::IsItemHovered();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        if (hov || openMainMenu) dl->AddRectFilled(p, ImVec2(p.x + U(40), p.y + U(28)), Hover, U(6));
-        DrawLogo(dl, ImVec2(p.x + U(4), p.y + U(4)), U(20));
-        DrawIcon(dl, Icon::ChevronDown, ImVec2(p.x + U(32), p.y + U(14)), U(9), hov ? Text : TextDim);
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) ImGui::SetTooltip("Main menu");
-    }
-    ImGui::SameLine(0, U(6));
+    ImGui::SetCursorPos(ImVec2(U(14), U(10)));
     ImGui::BeginGroup();
     static bool editingName = false;
     static char nameBuf[256];
@@ -454,28 +442,53 @@ static bool FontCombo(const char* id, std::string* family, float width)
     return changed;
 }
 
-static void PaintEditor(App* app, const char* id, Paint* p, float width, bool allowGradient)
+static bool PaintEditor(const char* id, Paint* p, float width)
 {
     ImGui::PushID(id);
-    bool ch = false;
+    bool ch = ui::ColorRow("##c0", &p->c0, width);
     if (p->type == 2)
     {
-        ch |= ui::ColorRow("##c0", &p->c0, width);
         ch |= ui::ColorRow("##c1", &p->c1, width);
-        ch |= ui::NumField("##ang", "", &p->angle, U(90), 1.0f, -360, 360, "\xC2\xB0", Icon::Radius);
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Solid")) { p->type = 1; ch = true; }
+        ch |= ui::NumField("##ang", "", &p->angle, width * 0.5f, 1.0f, -360, 360, "\xC2\xB0", Icon::Radius);
     }
-    else
-    {
-        ch |= ui::ColorRow("##c0", &p->c0, width);
-        if (allowGradient)
-        {
-            if (ImGui::SmallButton("Gradient")) { p->type = 2; p->c1 = ImVec4(p->c0.x * 0.5f, p->c0.y * 0.5f, p->c0.z * 0.5f, p->c0.w); ch = true; }
-        }
-    }
-    if (ch) app->MarkDirty();
     ImGui::PopID();
+    return ch;
+}
+
+// One Fill / Stroke list row in the Figma layout: the paint editor, then eye and minus buttons on its first line.
+// The eye stashes the paint type in *hidden (the paint renders as none meanwhile). Returns 1 on edit, 2 on eye, -1 on remove.
+static int PaintRow(const char* id, Paint* paint, int* hidden, float W)
+{
+    float fh = ImGui::GetFrameHeight();
+    float rowW = W - fh * 2 - U(8);
+    ImVec2 p0 = ImGui::GetCursorScreenPos();
+    Paint view = *paint;
+    if (*hidden) view.type = *hidden;
+    if (*hidden) ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.45f);
+    bool ch = PaintEditor(id, &view, rowW);
+    if (*hidden) ImGui::PopStyleVar();
+    ImVec2 end = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(ImVec2(p0.x + rowW + U(4), p0.y));
+    ImGui::PushID(id);
+    int res = ch ? 1 : 0;
+    if (IconButton("##eye", *hidden ? Icon::EyeOff : Icon::Eye, false, 0, *hidden ? "Show" : "Hide")) res = 2;
+    ImGui::SameLine(0, U(4));
+    if (IconButton("##rm", Icon::Minus, false, 0, "Remove")) res = -1;
+    ImGui::PopID();
+    ImGui::SetCursorScreenPos(end);
+    ImGui::Dummy(ImVec2(0, 0));
+    if (ch)
+    {
+        if (*hidden) { *hidden = view.type; view.type = 0; }
+        *paint = view;
+    }
+    else if (res == 2)
+    {
+        if (*hidden) { paint->type = *hidden; *hidden = 0; }
+        else { *hidden = paint->type; paint->type = 0; }
+    }
+    else if (res == -1) { paint->type = 0; *hidden = 0; }
+    return res;
 }
 
 void App::DrawDesignTab()
@@ -491,7 +504,12 @@ void App::DrawDesignTab()
         if (ui::ColorRow("##canvas", &c, W)) { doc.canvasColor = c; MarkDirty(); }
         ui::Section("State variables");
         auto list = CollectVars(doc);
-        if (list.empty()) ui::Label("Add interactions in the Prototype tab - their variables appear here.");
+        if (list.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+            ImGui::TextWrapped("Add interactions in the Prototype tab - their variables appear here.");
+            ImGui::PopStyleColor();
+        }
         for (auto& v : list)
         {
             ImGui::PushID(v.name.c_str());
@@ -514,36 +532,92 @@ void App::DrawDesignTab()
     bool multi = nodes.size() > 1;
     ImGui::PushID(n->id.c_str());
 
-    // Alignment row
-    ImGui::Dummy(ImVec2(0, U(2)));
-    const Icon al[] = { Icon::AlignLeft, Icon::AlignCenterH, Icon::AlignRight, Icon::AlignTop, Icon::AlignCenterV, Icon::AlignBottom };
-    const char* alTip[] = { "Align left", "Align horizontal centers", "Align right", "Align top", "Align vertical centers", "Align bottom" };
-    for (int i = 0; i < 6; i++)
-    {
-        if (i) ImGui::SameLine(0, i == 3 ? U(10) : U(2));
-        ImGui::PushID(i);
-        if (IconButton("##al", al[i], false, U(26), alTip[i])) AlignSelection(i);
+    float fh = ImGui::GetFrameHeight();
+    float gap = U(8);
+    float col = (W - fh - gap * 2) * 0.5f;   // two field columns + an icon column, as in Figma
+    float col2 = col + gap;                   // x of the second column
+    float x0 = ImGui::GetCursorPosX();
+    auto IconCol = [&]() { ImGui::SameLine(x0 + col * 2 + gap * 2); };
+    // A row of icon buttons on field-colored pills: two groups of three, one per column.
+    auto IconPills = [&](const char* id, const Icon* icons, const char* const* tips, int count, int selected) {
+        int hit = -1;
+        ImGui::PushID(id);
+        ImVec2 gp = ImGui::GetCursorScreenPos();
+        int per = count > 3 ? 3 : count;
+        float bw = col / per;
+        for (int g = 0; g * per < count; g++) ui::IconGroupBg(ImVec2(gp.x + g * col2, gp.y), col);
+        for (int i = 0; i < count; i++)
+        {
+            ImGui::SetCursorScreenPos(ImVec2(gp.x + (i / per) * col2 + (i % per) * bw + (bw - fh) * 0.5f, gp.y));
+            ImGui::PushID(i);
+            if (IconButton("##ib", icons[i], selected == i, fh, tips ? tips[i] : nullptr)) hit = i;
+            ImGui::PopID();
+        }
+        ImGui::SetCursorScreenPos(gp);
+        ImGui::Dummy(ImVec2(W, fh));
         ImGui::PopID();
-    }
+        return hit;
+    };
 
-    // Header: type + name
-    ui::Section(multi ? "Mixed" : (n->type == NodeType::Frame ? "Frame" : n->type == NodeType::Group ? "Group" : n->type == NodeType::Rect ? "Rectangle" : n->type == NodeType::Ellipse ? "Ellipse"
-                : n->type == NodeType::Line ? "Line" : n->type == NodeType::Text ? "Text" : n->type == NodeType::Image ? "Image" : "Vector"));
+    // Header: layer type, quick actions, name
+    const char* typeName = multi ? "Mixed" : n->type == NodeType::Frame ? "Frame" : n->type == NodeType::Group ? "Group" : n->type == NodeType::Rect ? "Rectangle"
+        : n->type == NodeType::Ellipse ? "Ellipse" : n->type == NodeType::Line ? "Line" : n->type == NodeType::Text ? "Text" : n->type == NodeType::Image ? "Image" : "Vector";
+    ImGui::Dummy(ImVec2(0, U(6)));
+    ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), ImGui::GetStyle().FontSizeBase + 2.0f);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(typeName);
+    ImGui::PopFont();
+    ImGui::SameLine(x0 + W - fh * 3 - U(8));
+    if (IconButton("##hgroup", Icon::Group, false, 0, "Group selection (Ctrl+G)")) GroupSelection(false);
+    ImGui::SameLine(0, U(4));
+    if (IconButton("##hframe", Icon::Frame, false, 0, "Frame selection (Ctrl+Alt+G)")) GroupSelection(true);
+    ImGui::SameLine(0, U(4));
+    if (IconButton("##hcopy", Icon::Copy, false, 0, "Copy as...")) ImGui::OpenPopup("##copyas");
+    if (ImGui::BeginPopup("##copyas"))
+    {
+        const char* fmts[] = { "CSS", "SVG", "PNG", "ImGui code", "JSON" };
+        for (int i = 0; i < 5; i++) if (ImGui::MenuItem(("Copy as " + std::string(fmts[i])).c_str())) CopyAs(i);
+        ImGui::EndPopup();
+    }
     if (!multi)
     {
-        if (ui::TextField("##name", &n->name, W)) MarkDirty();
+        ImGui::Dummy(ImVec2(0, U(2)));
+        if (ui::TextField("##name", &n->name, W, "Layer name")) MarkDirty();
     }
 
-    // Position & size
-    ui::Section("Layout");
+    // Position
+    ui::Section("Position");
+    ui::SubLabel("Alignment");
+    {
+        const Icon al[] = { Icon::AlignLeft, Icon::AlignCenterH, Icon::AlignRight, Icon::AlignTop, Icon::AlignCenterV, Icon::AlignBottom };
+        const char* alTip[] = { "Align left", "Align horizontal centers", "Align right", "Align top", "Align vertical centers", "Align bottom" };
+        int a = IconPills("align", al, alTip, 6, -1);
+        if (a >= 0) AlignSelection(a);
+    }
+    ui::SubLabel("Position");
     bool ch = false;
-    ch |= ui::NumField("x", "X", &n->x, half);
-    ImGui::SameLine(0, U(8));
-    ch |= ui::NumField("y", "Y", &n->y, half);
+    ch |= ui::NumField("x", "X", &n->x, col);
+    ImGui::SameLine(x0 + col2);
+    ch |= ui::NumField("y", "Y", &n->y, col);
+
+    // Layout
+    ui::Section("Layout");
+    ui::SubLabel("Dimensions");
+    static bool lockRatio = false;
     float w0 = n->w, h0 = n->h;
-    ch |= ui::NumField("w", "W", &n->w, half, 1.0f, 0, 1e6f);
-    ImGui::SameLine(0, U(8));
-    if (n->type != NodeType::Line) ch |= ui::NumField("h", "H", &n->h, half, 1.0f, 0, 1e6f);
+    ch |= ui::NumField("w", "W", &n->w, col, 1.0f, 0, 1e6f);
+    if (n->type != NodeType::Line)
+    {
+        ImGui::SameLine(x0 + col2);
+        ch |= ui::NumField("h", "H", &n->h, col, 1.0f, 0, 1e6f);
+        IconCol();
+        if (IconButton("##ratio", lockRatio ? Icon::Link : Icon::Unlink, lockRatio, 0, "Constrain proportions")) lockRatio = !lockRatio;
+        if (lockRatio && w0 > 0 && h0 > 0)
+        {
+            if (n->w != w0) n->h = std::round(h0 * n->w / w0 * 100) / 100;
+            else if (n->h != h0) n->w = std::round(w0 * n->h / h0 * 100) / 100;
+        }
+    }
     if (n->w != w0 && n->type == NodeType::Text && n->textSizing == 1) n->textSizing = 2;
     if (n->h != h0 && n->type == NodeType::Text) n->textSizing = 0;
     if (n->w != w0) n->hugW = false;
@@ -551,36 +625,11 @@ void App::DrawDesignTab()
     if (n->parent && n->parent->layout)
     {
         ch |= ui::Check("Fill width", &n->fillW);
-        ImGui::SameLine(half + U(8));
+        ImGui::SameLine(x0 + col2);
         ch |= ui::Check("Fill height", &n->fillH);
     }
     if (multi && ch)
         for (size_t i = 1; i < nodes.size(); i++) { nodes[i]->w = n->w; nodes[i]->h = n->h; }
-
-    if (n->type == NodeType::Frame || n->type == NodeType::Rect || n->type == NodeType::Image)
-    {
-        static bool independent = false;
-        bool mixed = !(n->radius[0] == n->radius[1] && n->radius[1] == n->radius[2] && n->radius[2] == n->radius[3]);
-        if (mixed) independent = true;
-        if (!independent)
-        {
-            float r = n->radius[0];
-            if (ui::NumField("rad", "", &r, half, 1.0f, 0, 1e4f, nullptr, Icon::Radius)) { for (Node* q : nodes) for (float& e : q->radius) e = r; ch = true; }
-        }
-        else
-        {
-            float q4 = (W - U(18)) / 4;
-            for (int i = 0; i < 4; i++)
-            {
-                if (i) ImGui::SameLine(0, U(4));
-                ImGui::PushID(i);
-                ch |= ui::NumField("r", "", &n->radius[i], q4, 1.0f, 0, 1e4f);
-                ImGui::PopID();
-            }
-        }
-        ImGui::SameLine(0, U(4));
-        if (IconButton("##indep", independent ? Icon::Unlink : Icon::Link, independent, 0, "Independent corners")) independent = !independent;
-    }
     if (n->type == NodeType::Frame)
         ch |= ui::Check("Clip content", &n->clip);
     if (ch) MarkDirty();
@@ -637,50 +686,98 @@ void App::DrawDesignTab()
         }
     }
 
-    // Layer
-    ui::Section("Layer");
+    // Appearance
+    if (ui::Section("Appearance", 0, n->visible ? Icon::Eye : Icon::EyeOff, n->visible ? "Hide layer" : "Show layer") == 2)
+    {
+        bool v = !n->visible;
+        for (Node* q : nodes) q->visible = v;
+        MarkDirty();
+    }
+    bool hasRadius = n->type == NodeType::Frame || n->type == NodeType::Rect || n->type == NodeType::Image;
+    ui::SubLabels("Opacity", hasRadius ? "Corner radius" : "", col2);
     float op = std::round(n->opacity * 100);
-    if (ui::NumField("op", "", &op, half, 1.0f, 0, 100, "%", Icon::Eye)) { for (Node* q : nodes) q->opacity = op / 100.0f; MarkDirty(); }
-    ImGui::SameLine(0, U(8));
-    if (ui::Check("Visible", &n->visible)) MarkDirty();
+    if (ui::NumField("op", "", &op, col, 1.0f, 0, 100, "%", Icon::Grid)) { for (Node* q : nodes) q->opacity = op / 100.0f; MarkDirty(); }
+    if (hasRadius)
+    {
+        static bool independent = false;
+        bool mixed = !(n->radius[0] == n->radius[1] && n->radius[1] == n->radius[2] && n->radius[2] == n->radius[3]);
+        if (mixed) independent = true;
+        bool rc = false;
+        if (!independent)
+        {
+            ImGui::SameLine(x0 + col2);
+            float r = n->radius[0];
+            if (ui::NumField("rad", "", &r, col, 1.0f, 0, 1e4f, nullptr, Icon::Radius)) { for (Node* q : nodes) for (float& e : q->radius) e = r; rc = true; }
+        }
+        IconCol();
+        if (IconButton("##indep", Icon::Frame, independent, 0, "Independent corners")) independent = !independent;
+        if (independent)
+        {
+            float q4 = (col * 2 + gap - U(12)) / 4;
+            const char* corner[] = { "TL", "TR", "BR", "BL" };
+            for (int i = 0; i < 4; i++)
+            {
+                if (i) ImGui::SameLine(0, U(4));
+                ImGui::PushID(i);
+                rc |= ui::NumField("r", corner[i], &n->radius[i], q4, 1.0f, 0, 1e4f);
+                ImGui::PopID();
+            }
+        }
+        if (rc) MarkDirty();
+    }
 
     // Text
     if (n->type == NodeType::Text)
     {
-        ui::Section("Text");
+        ui::Section("Typography");
         bool tc = false;
         tc |= FontCombo("##font", &n->fontFamily, W);
+        ui::SubLabels("Weight", "Size", col2);
         auto styles = fonts::Styles(n->fontFamily);
-        ImGui::SetNextItemWidth(half);
+        ImGui::SetNextItemWidth(col);
         if (ImGui::BeginCombo("##style", n->fontStyle.c_str()))
         {
-            for (auto& s : styles) if (ImGui::Selectable(s.c_str(), s == n->fontStyle)) { n->fontStyle = s; tc = true; }
+            for (auto& st : styles) if (ImGui::Selectable(st.c_str(), st == n->fontStyle)) { n->fontStyle = st; tc = true; }
             ImGui::EndCombo();
         }
-        ImGui::SameLine(0, U(8));
-        tc |= ui::NumField("fs", "", &n->fontSize, half, 1.0f, 1, 1000, nullptr, Icon::Text);
+        ImGui::SameLine(x0 + col2);
+        tc |= ui::NumField("fs", "", &n->fontSize, col, 1.0f, 1, 1000, nullptr, Icon::Text);
+        ui::SubLabels("Line height", "Resizing", col2);
         float lh = n->lineHeight;
-        if (ui::NumField("lh", "LH", &lh, half, 1.0f, 0, 1000)) { n->lineHeight = lh; tc = true; }
-        ImGui::SameLine(0, U(8));
+        if (ui::NumField("lh", "", &lh, col, 1.0f, 0, 1000, nullptr, Icon::AlignCenterV)) { n->lineHeight = lh; tc = true; }
+        ImGui::SameLine(x0 + col2);
         const char* sizing[] = { "Fixed", "Auto W", "Auto H" };
-        tc |= ui::Segmented("##sizing", &n->textSizing, sizing, 3, half);
-        const Icon ah[] = { Icon::TextLeft, Icon::TextCenter, Icon::TextRight };
-        for (int i = 0; i < 3; i++)
+        ImGui::SetNextItemWidth(col);
+        if (ImGui::BeginCombo("##sizing", sizing[std::clamp(n->textSizing, 0, 2)]))
         {
-            if (i) ImGui::SameLine(0, U(2));
-            ImGui::PushID(i);
-            if (IconButton("##ah", ah[i], n->alignH == i)) { n->alignH = i; tc = true; }
-            ImGui::PopID();
+            for (int i = 0; i < 3; i++) if (ImGui::Selectable(sizing[i], n->textSizing == i)) { n->textSizing = i; tc = true; }
+            ImGui::EndCombo();
         }
-        ImGui::SameLine(0, U(12));
-        const Icon av[] = { Icon::AlignTop, Icon::AlignCenterV, Icon::AlignBottom };
-        for (int i = 0; i < 3; i++)
+        ui::SubLabel("Alignment");
         {
-            if (i) ImGui::SameLine(0, U(2));
-            ImGui::PushID(10 + i);
-            if (IconButton("##av", av[i], n->alignV == i)) { n->alignV = i; tc = true; }
+            const Icon ah[] = { Icon::TextLeft, Icon::TextCenter, Icon::TextRight };
+            const Icon av[] = { Icon::AlignTop, Icon::AlignCenterV, Icon::AlignBottom };
+            ImVec2 gp = ImGui::GetCursorScreenPos();
+            int h = IconPills("ah", ah, nullptr, 3, n->alignH);
+            ImVec2 after = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorScreenPos(ImVec2(gp.x + col2, gp.y));
+            ImGui::PushID("avp");
+            float bw = col / 3;
+            int v = -1;
+            for (int i = 0; i < 3; i++)
+            {
+                ImGui::SetCursorScreenPos(ImVec2(gp.x + col2 + i * bw + (bw - fh) * 0.5f, gp.y));
+                ImGui::PushID(i);
+                if (i == 0) ui::IconGroupBg(ImVec2(gp.x + col2, gp.y), col);
+                if (IconButton("##av", av[i], n->alignV == i, fh)) v = i;
+                ImGui::PopID();
+            }
             ImGui::PopID();
+            ImGui::SetCursorScreenPos(after);
+            if (h >= 0) { n->alignH = h; tc = true; }
+            if (v >= 0) { n->alignV = v; tc = true; }
         }
+        ui::SubLabel("Content");
         tc |= ui::TextField("##content", &n->text, W, nullptr, true, U(56));
         ImGui::PushStyleColor(ImGuiCol_Text, TextFaint);
         ImGui::TextWrapped("Use {var} or {var:%%.1f} to show state values.");
@@ -696,6 +793,7 @@ void App::DrawDesignTab()
     if (n->type == NodeType::Image)
     {
         ui::Section("Image");
+        ui::SubLabel("Fit");
         const char* fits[] = { "Fill", "Fit", "Stretch" };
         if (ui::Segmented("##fit", &n->imageFit, fits, 3, W)) MarkDirty();
         if (ImGui::Button("Replace image...", ImVec2(W, 0)))
@@ -708,40 +806,61 @@ void App::DrawDesignTab()
     if (n->type == NodeType::Vector)
     {
         ui::Section("Vector");
-        if (ui::Check("Recolor (tint with fill)", &n->recolor)) { if (n->recolor && n->fill.type == 0) n->fill = Paint{ 1, ImVec4(1, 1, 1, 1) }; MarkDirty(); }
+        if (ui::Check("Recolor (tint with fill)", &n->recolor)) { if (n->recolor && n->fill.type == 0) { n->fill = Paint{ 1, ImVec4(1, 1, 1, 1) }; n->fillHidden = 0; } MarkDirty(); }
     }
 
     // Fill
-    if (n->type != NodeType::Line && n->type != NodeType::Group && (n->type != NodeType::Image))
+    if (n->type != NodeType::Line && n->type != NodeType::Group && n->type != NodeType::Image)
     {
-        int b = ui::Section(n->type == NodeType::Text ? "Text color" : "Fill", n->fill.type ? -1 : 1);
-        if (b == 1) { for (Node* q : nodes) q->fill = Paint{ 1, n->type == NodeType::Text ? ImVec4(0, 0, 0, 1) : ImVec4(0.85f, 0.85f, 0.85f, 1) }; MarkDirty(); }
-        if (b == -1) { for (Node* q : nodes) q->fill.type = 0; MarkDirty(); }
-        if (n->fill.type)
+        bool has = n->fill.type || n->fillHidden;
+        bool allowGradient = n->type != NodeType::Text && n->type != NodeType::Vector;
+        int b = ui::Section(n->type == NodeType::Text ? "Text color" : "Fill", has ? 0 : 1, has && allowGradient ? Icon::Grid : (Icon)-1, "Fill type");
+        if (b == 1) { for (Node* q : nodes) { q->fill = Paint{ 1, n->type == NodeType::Text ? ImVec4(0, 0, 0, 1) : ImVec4(0.85f, 0.85f, 0.85f, 1) }; q->fillHidden = 0; } MarkDirty(); }
+        if (b == 2) ImGui::OpenPopup("##filltype");
+        if (ImGui::BeginPopup("##filltype"))
         {
-            Paint before = n->fill;
-            PaintEditor(this, "fill", &n->fill, W, n->type != NodeType::Text && n->type != NodeType::Vector);
-            if (multi && memcmp(&before, &n->fill, sizeof(Paint)) != 0) for (Node* q : nodes) q->fill = n->fill;
+            int& t = n->fillHidden ? n->fillHidden : n->fill.type;
+            if (ImGui::MenuItem("Solid", nullptr, t == 1)) { t = 1; MarkDirty(); }
+            if (ImGui::MenuItem("Linear gradient", nullptr, t == 2))
+            {
+                if (t != 2) n->fill.c1 = ImVec4(n->fill.c0.x * 0.5f, n->fill.c0.y * 0.5f, n->fill.c0.z * 0.5f, n->fill.c0.w);
+                t = 2;
+                MarkDirty();
+            }
+            ImGui::EndPopup();
+        }
+        if (has && PaintRow("fill", &n->fill, &n->fillHidden, W))
+        {
+            for (Node* q : nodes) { q->fill = n->fill; q->fillHidden = n->fillHidden; }
+            MarkDirty();
         }
     }
 
     // Stroke
     if (n->type != NodeType::Group && n->type != NodeType::Text && n->type != NodeType::Vector)
     {
-        int b = ui::Section("Stroke", n->stroke.type ? -1 : 1);
-        if (b == 1) { for (Node* q : nodes) { q->stroke = Paint{ 1, ImVec4(0, 0, 0, 1) }; q->strokeWidth = 1; } MarkDirty(); }
-        if (b == -1 && n->type != NodeType::Line) { for (Node* q : nodes) q->stroke.type = 0; MarkDirty(); }
-        if (n->stroke.type)
+        bool has = n->stroke.type || n->strokeHidden;
+        int b = ui::Section("Stroke", has ? 0 : 1);
+        if (b == 1) { for (Node* q : nodes) { q->stroke = Paint{ 1, ImVec4(0, 0, 0, 1) }; q->strokeWidth = 1; q->strokeHidden = 0; } MarkDirty(); }
+        if (has)
         {
-            bool sc = ui::ColorRow("##stroke", &n->stroke.c0, W);
-            sc |= ui::NumField("sw", "", &n->strokeWidth, half, 0.5f, 0, 1000, nullptr, Icon::Line);
-            if (n->type != NodeType::Line && n->type != NodeType::Ellipse)
+            bool sc = false;
+            int r = PaintRow("stroke", &n->stroke, &n->strokeHidden, W);
+            if (r == -1 && n->type == NodeType::Line) n->stroke.type = 1;   // a line needs its stroke
+            sc |= r != 0;
+            if (n->stroke.type || n->strokeHidden)
             {
-                ImGui::SameLine(0, U(8));
-                const char* aligns[] = { "Inside", "Center", "Outside" };
-                sc |= ui::Combo("##salign", &n->strokeAlign, aligns, 3, half);
+                bool aligned = n->type != NodeType::Line && n->type != NodeType::Ellipse;
+                ui::SubLabels(aligned ? "Position" : "Weight", aligned ? "Weight" : "", col2);
+                if (aligned)
+                {
+                    const char* aligns[] = { "Inside", "Center", "Outside" };
+                    sc |= ui::Combo("##salign", &n->strokeAlign, aligns, 3, col);
+                    ImGui::SameLine(x0 + col2);
+                }
+                sc |= ui::NumField("sw", "", &n->strokeWidth, col, 0.5f, 0, 1000, nullptr, Icon::Line);
             }
-            if (sc) { for (Node* q : nodes) { q->stroke = n->stroke; q->strokeWidth = n->strokeWidth; q->strokeAlign = n->strokeAlign; } MarkDirty(); }
+            if (sc) { for (Node* q : nodes) { q->stroke = n->stroke; q->strokeHidden = n->strokeHidden; q->strokeWidth = n->strokeWidth; q->strokeAlign = n->strokeAlign; } MarkDirty(); }
         }
     }
 
@@ -1276,67 +1395,7 @@ void App::DrawSettingsDialog()
 
 void App::DrawMainMenu()
 {
-    if (openMainMenu) { ImGui::OpenPopup("##mainmenupopup"); openMainMenu = false; }
-    ImGui::SetNextWindowPos(ImVec2(ImGui::GetMainViewport()->WorkPos.x + U(8), ImGui::GetMainViewport()->WorkPos.y + U(40)), ImGuiCond_Appearing);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(6), U(6)));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(U(8), U(5)));
-    if (ImGui::BeginPopup("##mainmenupopup"))
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("Projects...", "Ctrl+Shift+O")) OpenHome();
-            if (ImGui::MenuItem("New project...", "Ctrl+N")) { newProjectFromCurrent = false; openNewProject = true; }
-            if (ImGui::MenuItem("Open file...", "Ctrl+O")) OpenDocument();
-            if (ImGui::BeginMenu("Open recent", !recentFiles.empty()))
-            {
-                for (auto& r : recentFiles)
-                    if (ImGui::MenuItem(r.c_str())) { OpenDocument(r); break; }
-                ImGui::EndMenu();
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem(projectDir.empty() ? "Save to project..." : "Save", "Ctrl+S")) SaveDocument(false);
-            if (ImGui::MenuItem("Save as single file...", "Ctrl+Shift+S")) SaveDocument(true);
-            if (!projectDir.empty() && ImGui::MenuItem("Show project folder")) platform::OpenInExplorer(projectDir);
-            if (ImGui::MenuItem("New blank design")) NewDocument();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Place image / SVG...", "Ctrl+Shift+K"))
-                for (auto& f : platform::OpenFilesDialog("Place image", "Media|*.png;*.jpg;*.jpeg;*.svg;*.bmp;*.gif;*.mp4;*.mov;*.wmv;*.m4v")) ImportImageFile(f, nullptr, ImVec2(0, 0));
-            if (ImGui::MenuItem("Export ImGui project...", "Ctrl+E")) showExport = true;
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Edit"))
-        {
-            if (ImGui::MenuItem("Undo", "Ctrl+Z")) Undo();
-            if (ImGui::MenuItem("Redo", "Ctrl+Shift+Z")) Redo();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Copy", "Ctrl+C")) CopySelection();
-            if (ImGui::MenuItem("Paste", "Ctrl+V")) Paste();
-            if (ImGui::MenuItem("Duplicate", "Ctrl+D")) DuplicateSelection();
-            if (ImGui::MenuItem("Delete", "Del")) DeleteSelection();
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("View"))
-        {
-            if (ImGui::MenuItem("Zoom to fit", "Shift+1")) ZoomToFit(false);
-            if (ImGui::MenuItem("Zoom to selection", "Shift+2")) ZoomToFit(true);
-            ImGui::MenuItem("Show all conditional layers", nullptr, &ignoreConditions);
-            ImGui::Separator();
-            ImGui::MenuItem("Pixel grid (from 400%)", "Shift+'", &pixelGrid);
-            ImGui::MenuItem("Snap to pixel grid", "Ctrl+Shift+'", &snapToPixel);
-            ImGui::MenuItem("Pixel preview", "Ctrl+Alt+Y", &pixelPreview);
-            ImGui::Separator();
-            if (ImGui::MenuItem("Preview", "Ctrl+Enter", preview)) preview = !preview;
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Help"))
-        {
-            if (ImGui::MenuItem("Keyboard shortcuts")) showShortcuts = true;
-            if (ImGui::MenuItem("Settings...")) showSettings = true;
-            ImGui::EndMenu();
-        }
-        ImGui::EndPopup();
-    }
-    ImGui::PopStyleVar(2);
+    if (openMainMenu) { openMenu = 0; openMainMenu = false; }
 
     if (showShortcuts)
     {

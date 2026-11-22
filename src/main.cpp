@@ -8,6 +8,9 @@
 #include "platform.h"
 #include "../runtime/fimgui_fx.h"
 #include <d3d11.h>
+#include <algorithm>
+#include <windowsx.h>
+#include <dwmapi.h>
 #include <shellapi.h>
 #include <objbase.h>
 
@@ -125,6 +128,42 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         DragFinish(drop);
         return 0;
     }
+    case WM_NCCALCSIZE:
+        // No system caption or frame: the client area covers the whole window, Fimgui draws its own title bar.
+        if (wParam == TRUE)
+        {
+            if (IsZoomed(hWnd))
+            {
+                // A maximized window is larger than the monitor by the frame size; keep the content on screen.
+                NCCALCSIZE_PARAMS* p = (NCCALCSIZE_PARAMS*)lParam;
+                UINT dpiW = GetDpiForWindow(hWnd);
+                int fx = GetSystemMetricsForDpi(SM_CXFRAME, dpiW) + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpiW);
+                int fy = GetSystemMetricsForDpi(SM_CYFRAME, dpiW) + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpiW);
+                p->rgrc[0].left += fx; p->rgrc[0].right -= fx;
+                p->rgrc[0].top += fy; p->rgrc[0].bottom -= fy;
+            }
+            return 0;
+        }
+        break;
+    case WM_NCHITTEST:
+    {
+        // Resize borders inside the client area (the title bar itself is handled by the app).
+        if (IsZoomed(hWnd)) return HTCLIENT;
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        RECT rc;
+        GetWindowRect(hWnd, &rc);
+        int b = MulDiv(6, GetDpiForWindow(hWnd), 96);
+        bool l = pt.x < rc.left + b, r = pt.x >= rc.right - b, t = pt.y < rc.top + b, bt = pt.y >= rc.bottom - b;
+        if (t && l) return HTTOPLEFT;
+        if (t && r) return HTTOPRIGHT;
+        if (bt && l) return HTBOTTOMLEFT;
+        if (bt && r) return HTBOTTOMRIGHT;
+        if (l) return HTLEFT;
+        if (r) return HTRIGHT;
+        if (t) return HTTOP;
+        if (bt) return HTBOTTOM;
+        return HTCLIENT;
+    }
     case WM_GETMINMAXINFO:
         ((MINMAXINFO*)lParam)->ptMinTrackSize = { 900, 560 };
         return 0;
@@ -149,6 +188,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     g_hwnd = CreateWindowW(wc.lpszClassName, L"Fimgui", WS_OVERLAPPEDWINDOW, 80, 60, (int)(1480 * dpi), (int)(900 * dpi), nullptr, nullptr, hInst, nullptr);
     if (!CreateDevice(g_hwnd)) { CleanupDevice(); UnregisterClassW(wc.lpszClassName, hInst); return 1; }
     DragAcceptFiles(g_hwnd, TRUE);
+    {
+        // Keep the DWM shadow and rounded corners without the system caption.
+        MARGINS m = { 0, 0, 1, 0 };
+        DwmExtendFrameIntoClientArea(g_hwnd, &m);
+        SetWindowPos(g_hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+    }
     ShowWindow(g_hwnd, SW_SHOWMAXIMIZED);
     UpdateWindow(g_hwnd);
 
@@ -236,6 +281,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (a == "--export") exportDir = next();
             else if (a == "--workspace") { g_appInstance.workspace = next(); g_appInstance.persistSettings = false; }
             else if (a == "--home") forceHome = true;
+            else if (a == "--check-updates") g_appInstance.CheckForUpdates();
+            else if (a == "--ui-scale") { g_appInstance.pendingUiScale = (float)std::atof(next().c_str()); g_appInstance.persistSettings = false; }
             else if (a == "--save") g_appInstance.deferred.push_back([] { g_appInstance.SaveDocument(false); });
             else if (a == "--project")
             {
@@ -262,6 +309,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (!a.empty() && a[0] != '-') g_appInstance.OpenDocument(a);
         }
         if (!args.empty()) g_appInstance.showHome = forceHome;
+        // Automation flags (--screenshot, --ops, ...) skip the update check; opening a file by double click does not.
+        if (std::none_of(args.begin(), args.end(), [](const std::string& a) { return a.rfind("--", 0) == 0; })) g_appInstance.StartupChecks();
         if (!g_appInstance.doc.roots.empty()) g_appInstance.deferred.push_back([] { g_appInstance.ZoomToFit(false); });
         if (zoomArg > 0)
             g_appInstance.deferred.push_back([zoomArg] {
@@ -299,11 +348,18 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
         ImGui_ImplWin32_NewFrame();
         for (const Click& c : clicks)
         {
-            Node* n = g_appInstance.doc.Find(c.id);
-            if (!n || frame < c.frame || frame > c.frame + 3) continue;
-            ImVec2 wa, wb;
-            NodeWorldRect(n, &g_appInstance.vars, &wa, &wb);
-            ImVec2 p = g_appInstance.WorldToScreen(ImVec2((wa.x + wb.x) * 0.5f, (wa.y + wb.y) * 0.5f + c.dy));
+            if (frame < c.frame || frame > c.frame + 3) continue;
+            ImVec2 p;
+            if (c.id.size() > 1 && c.id[0] == '@')
+                sscanf(c.id.c_str() + 1, "%f,%f", &p.x, &p.y);   // --click @x,y: screen coordinates (title bar, panels)
+            else
+            {
+                Node* n = g_appInstance.doc.Find(c.id);
+                if (!n) continue;
+                ImVec2 wa, wb;
+                NodeWorldRect(n, &g_appInstance.vars, &wa, &wb);
+                p = g_appInstance.WorldToScreen(ImVec2((wa.x + wb.x) * 0.5f, (wa.y + wb.y) * 0.5f + c.dy));
+            }
             ImGuiIO& cio = ImGui::GetIO();
             cio.AddMousePosEvent(p.x, p.y);
             if (frame == c.frame + 1) cio.AddMouseButtonEvent(0, true);

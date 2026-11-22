@@ -104,6 +104,7 @@ struct Node
     Paint stroke{ 0 };
     float strokeWidth = 1.0f;
     int   strokeAlign = 0;                  // 0 inside, 1 center, 2 outside
+    int   fillHidden = 0, strokeHidden = 0;  // eye toggle: paint type to restore (paint.type is 0 while hidden)
     Effect effect;
     BlurFx blur;
     GlassFx glass;

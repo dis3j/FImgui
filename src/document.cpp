@@ -374,8 +374,10 @@ json NodeToJson(const Node* n)
         if (n->radius[0] == n->radius[1] && n->radius[1] == n->radius[2] && n->radius[2] == n->radius[3]) j["radius"] = n->radius[0];
         else j["radius"] = { n->radius[0], n->radius[1], n->radius[2], n->radius[3] };
     }
-    if (!PaintEq(n->fill, d.fill)) j["fill"] = PaintJ(n->fill);
-    if (!PaintEq(n->stroke, d.stroke)) j["stroke"] = PaintJ(n->stroke);
+    if (n->fillHidden) { Paint p = n->fill; p.type = n->fillHidden; j["fill"] = PaintJ(p); j["fillHidden"] = true; }
+    else if (!PaintEq(n->fill, d.fill)) j["fill"] = PaintJ(n->fill);
+    if (n->strokeHidden) { Paint p = n->stroke; p.type = n->strokeHidden; j["stroke"] = PaintJ(p); j["strokeHidden"] = true; }
+    else if (!PaintEq(n->stroke, d.stroke)) j["stroke"] = PaintJ(n->stroke);
     if (n->stroke.type && n->strokeWidth != 1.0f) j["strokeWidth"] = n->strokeWidth;
     if (n->stroke.type && n->strokeAlign != 0) j["strokeAlign"] = n->strokeAlign == 1 ? "center" : "outside";
     if (n->effect.type)
@@ -480,6 +482,9 @@ void ApplyProps(Node* n, const json& p, Document* doc)
 {
     if (!p.is_object()) return;
     (void)doc;
+    // Setting a paint shows it again unless the same update hides it.
+    if (p.contains("fill") || p.contains("color") || p.contains("background")) n->fillHidden = 0;
+    if (p.contains("stroke") || p.contains("border")) n->strokeHidden = 0;
     for (auto it = p.begin(); it != p.end(); ++it)
     {
         const std::string& k = it.key();
@@ -655,6 +660,8 @@ void ApplyProps(Node* n, const json& p, Document* doc)
         else if (k == "noneLabel" && v.is_string()) n->noneLabel = v.get<std::string>();
         else if (k == "allLabel" && v.is_string()) n->allLabel = v.get<std::string>();
     }
+    if (p.contains("fillHidden") && Num(p["fillHidden"], 0) != 0 && n->fill.type) { n->fillHidden = n->fill.type; n->fill.type = 0; }
+    if (p.contains("strokeHidden") && Num(p["strokeHidden"], 0) != 0 && n->stroke.type) { n->strokeHidden = n->stroke.type; n->stroke.type = 0; }
     if (n->type == NodeType::Line) n->h = 0;
 }
 

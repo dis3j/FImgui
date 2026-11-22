@@ -15,6 +15,8 @@ add_executable(Fimgui WIN32
     src/ui_ai.cpp
     src/ui_motion.cpp
     src/ui_home.cpp
+    src/ui_chrome.cpp
+    src/updater.cpp
     src/project.cpp
     src/mcp_server.cpp
     src/mcp_tools.cpp
@@ -42,7 +44,7 @@ add_executable(Fimgui WIN32
 
 target_include_directories(Fimgui PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends runtime src)
 target_compile_definitions(Fimgui PRIVATE UNICODE _UNICODE NOMINMAX _CRT_SECURE_NO_WARNINGS)
-target_link_libraries(Fimgui PRIVATE d3d11 dxgi d3dcompiler winhttp crypt32 shell32 ole32 shlwapi mfplat mfreadwrite mfuuid ws2_32)
+target_link_libraries(Fimgui PRIVATE d3d11 dxgi d3dcompiler dwmapi winhttp crypt32 shell32 ole32 shlwapi mfplat mfreadwrite mfuuid ws2_32)
 
 if(MSVC)
     target_compile_options(Fimgui PRIVATE /utf-8 /bigobj /W3 /MP)
@@ -68,5 +70,6 @@ add_custom_command(TARGET Fimgui POST_BUILD
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb/stb_image.h
         $<TARGET_FILE_DIR:Fimgui>/runtime
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE $<TARGET_FILE_DIR:Fimgui>/runtime/FIMGUI_LICENSE.txt
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/CHANGELOG.md $<TARGET_FILE_DIR:Fimgui>/CHANGELOG.md
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources $<TARGET_FILE_DIR:Fimgui>/resources
 )

@@ -12,7 +12,7 @@ enum class Icon
 };
 
 void DrawIcon(ImDrawList* dl, Icon icon, ImVec2 center, float size, ImU32 col);
-// Fimgui logo: "FI" monogram on a rounded gradient square (same geometry as resources/logo.svg).
+// Fimgui logo: "Fi" with a paint brush as the i, on a rounded gradient square (same geometry as tools/make_logo.py).
 void DrawLogo(ImDrawList* dl, ImVec2 pos, float size, float alpha = 1.0f);
 // Icon-only button in the Figma style (transparent until hovered). Returns true when clicked.
 bool IconButton(const char* id, Icon icon, bool selected = false, float size = 0.0f, const char* tooltip = nullptr);

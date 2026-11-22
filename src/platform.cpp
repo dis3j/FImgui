@@ -193,6 +193,18 @@ namespace platform
     void OpenInExplorer(const std::string& path) { ShellExecuteW(nullptr, L"open", Widen(path).c_str(), nullptr, nullptr, SW_SHOWNORMAL); }
     void OpenUrl(const std::string& url) { ShellExecuteW(nullptr, L"open", Widen(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL); }
     void SetWindowTitle(const std::string& t) { SetWindowTextW(g_hwnd, Widen(t).c_str()); }
+    void MinimizeWindow() { ShowWindow(g_hwnd, SW_MINIMIZE); }
+    void ToggleMaximizeWindow() { ShowWindow(g_hwnd, IsZoomed(g_hwnd) ? SW_RESTORE : SW_MAXIMIZE); }
+    bool IsWindowMaximized() { return IsZoomed(g_hwnd) != 0; }
+    void CloseMainWindow() { PostMessageW(g_hwnd, WM_CLOSE, 0, 0); }
+    void StartWindowDrag()
+    {
+        // Hand the drag to Windows (Aero snap, moving between monitors).
+        ReleaseCapture();
+        POINT pt;
+        GetCursorPos(&pt);
+        PostMessageW(g_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(pt.x, pt.y));
+    }
 
     // ------------------------------------------------------------ clipboard
 

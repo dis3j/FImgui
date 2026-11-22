@@ -137,9 +137,20 @@ void DrawLogo(ImDrawList* dl, ImVec2 p, float size, float alpha)
     bg.c1 = IM_COL32(138, 92, 255, 255);
     bg.angle = 45.0f;
     fim::FillRect(dl, p, ImVec2(p.x + size, p.y + size), r, bg, alpha);
-    const float bars[4][4] = { { 66, 64, 94, 192 }, { 66, 64, 152, 92 }, { 66, 114, 136, 140 }, { 166, 64, 194, 192 } };
-    for (auto& b : bars)
-        dl->AddRectFilled(ImVec2(p.x + b[0] * k, p.y + b[1] * k), ImVec2(p.x + b[2] * k, p.y + b[3] * k), fim::Fade(IM_COL32_WHITE, alpha), 5 * k);
+    ImU32 white = fim::Fade(IM_COL32_WHITE, alpha);
+    auto P = [&](float x, float y) { return ImVec2(p.x + x * k, p.y + y * k); };
+    // "F"
+    const float bars[3][4] = { { 58, 60, 88, 196 }, { 58, 60, 146, 88 }, { 58, 114, 130, 140 } };
+    for (auto& b : bars) dl->AddRectFilled(P(b[0], b[1]), P(b[2], b[3]), white, 5 * k);
+    // "i" as a paint brush, bristles down: a paint drop for the dot, handle, ferrule, tapered tip.
+    dl->AddCircleFilled(P(182, 72), 13 * k, white, 24);
+    dl->AddRectFilled(P(175, 98), P(189, 140), white, 7 * k);
+    dl->AddRectFilled(P(169, 142), P(195, 156), fim::Fade(IM_COL32_WHITE, alpha * 0.72f), 3 * k);
+    dl->PathLineTo(P(169, 158));
+    dl->PathLineTo(P(195, 158));
+    dl->PathBezierCubicCurveTo(P(196, 176), P(190, 188), P(182, 198));
+    dl->PathBezierCubicCurveTo(P(174, 188), P(168, 176), P(169, 158));
+    dl->PathFillConvex(white);
 }
 
 bool IconButton(const char* id, Icon icon, bool selected, float size, const char* tooltip)

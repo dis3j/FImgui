@@ -12,7 +12,14 @@ namespace ui
     bool ColorRow(const char* id, ImVec4* c, float width);
     bool ColorSwatch(const char* id, ImVec4* c, float size);
     // Section header with optional +/- button. Returns 1 when + clicked, -1 when - clicked.
-    int  Section(const char* title, int button = 0);   // button: 0 none, 1 plus, -1 minus
+    // extra: optional icon button left of +/- (returns 2 when clicked).
+    int  Section(const char* title, int button = 0, Icon extra = (Icon)-1, const char* extraTip = nullptr);
+    // Small dim caption above a field ("Position", "Opacity"...). x: offset inside the row.
+    void SubLabel(const char* text, float x = 0.0f);
+    // Two captions on one line (above two columns).
+    void SubLabels(const char* a, const char* b, float secondX);
+    // Rounded field-colored background behind a run of icon buttons.
+    void IconGroupBg(ImVec2 pos, float width);
     bool Segmented(const char* id, int* value, const char* const* labels, int count, float width);
     bool IconToggle(const char* id, Icon icon, bool on, const char* tip = nullptr);
     bool TextField(const char* id, std::string* s, float width, const char* hint = nullptr, bool multiline = false, float height = 0);

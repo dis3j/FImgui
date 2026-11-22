@@ -1,4 +1,5 @@
 #include "app.h"
+#include "version.h"
 #include "theme.h"
 #include "fonts.h"
 #include "gfx.h"
@@ -27,8 +28,8 @@ void theme::Apply(float dpiScale)
     ImGuiStyle& st = ImGui::GetStyle();
     st = ImGuiStyle();
     st.WindowPadding = ImVec2(12, 10);
-    st.FramePadding = ImVec2(7, 4);
-    st.ItemSpacing = ImVec2(8, 6);
+    st.FramePadding = ImVec2(8, 6);
+    st.ItemSpacing = ImVec2(8, 7);
     st.ItemInnerSpacing = ImVec2(6, 4);
     st.CellPadding = ImVec2(4, 2);
     st.IndentSpacing = 14;
@@ -100,12 +101,22 @@ void theme::Apply(float dpiScale)
 void App::Init()
 {
     g_app = this;
+    baseDpi = theme::dpi;
     LoadSettings();
+    theme::Apply(baseDpi * uiScale);
     NewDocument();
     modified = false;
     StartMcp();
     showHome = showHomeOnStart;
     homeNeedsScan = true;
+}
+
+void App::StartupChecks()
+{
+    if (checkUpdates) updater::CheckAsync();
+    // After an update: show this version's patch notes once.
+    if (!lastSeenVersion.empty() && updater::Compare(lastSeenVersion, FIMGUI_VERSION) < 0) OpenWhatsNew(false);
+    if (lastSeenVersion != FIMGUI_VERSION) { lastSeenVersion = FIMGUI_VERSION; SaveSettings(); }
 }
 
 void App::Shutdown()
@@ -139,6 +150,18 @@ void App::Frame()
     if (m_drag != Drag::Move) doc.ApplyLayout();
     EnsureVars(doc, vars);
 
+    if (pendingUiScale > 0)
+    {
+        uiScale = pendingUiScale;
+        pendingUiScale = 0;
+        float l = leftW / theme::dpi, r = rightW / theme::dpi;
+        theme::Apply(baseDpi * uiScale);
+        leftW = theme::U(l);
+        rightW = theme::U(r);
+        if (persistSettings) SaveSettings();
+    }
+    PollUpdates();
+    DrawTitleBar();
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
     ImGui::SetNextWindowSize(vp->WorkSize);
@@ -191,6 +214,7 @@ void App::Frame()
     DrawExportDialog();
     DrawSettingsDialog();
     DrawMainMenu();
+    DrawUpdateDialogs();
     HandleShortcuts();
 
     // Confirm modal
@@ -472,6 +496,10 @@ void App::SaveSettings()
     j["pixelGrid"] = pixelGrid;
     j["workspace"] = workspace;
     j["showHomeOnStart"] = showHomeOnStart;
+    j["checkUpdates"] = checkUpdates;
+    j["uiScale"] = uiScale;
+    j["skippedVersion"] = skippedVersion;
+    j["lastSeenVersion"] = lastSeenVersion;
     j["recentFiles"] = recentFiles;
     j["snapToPixel"] = snapToPixel;
     j["mcpPort"] = mcpPort;
@@ -501,6 +529,10 @@ void App::LoadSettings()
     pixelGrid = j.value("pixelGrid", pixelGrid);
     workspace = j.value("workspace", workspace);
     showHomeOnStart = j.value("showHomeOnStart", showHomeOnStart);
+    checkUpdates = j.value("checkUpdates", checkUpdates);
+    uiScale = std::clamp(j.value("uiScale", uiScale), 0.8f, 2.0f);
+    skippedVersion = j.value("skippedVersion", skippedVersion);
+    lastSeenVersion = j.value("lastSeenVersion", lastSeenVersion);
     if (j.contains("recentFiles") && j["recentFiles"].is_array())
         for (auto& r : j["recentFiles"]) if (r.is_string()) recentFiles.push_back(r.get<std::string>());
     snapToPixel = j.value("snapToPixel", snapToPixel);

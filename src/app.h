@@ -1,4 +1,5 @@
 #pragma once
+#include "updater.h"
 #include "document.h"
 #include "renderer.h"
 #include "codegen.h"
@@ -186,6 +187,27 @@ public:
     void DrawSettingsDialog();
     void DrawContextMenu();
     void DrawMainMenu();
+    // Window chrome (ui_chrome.cpp): custom title bar, menus, updates.
+    void DrawTitleBar();
+    void StartupChecks();   // update check + what's new (skipped for command-line runs)
+    float TitleBarHeight() const;
+    void MenuFile();
+    void MenuEdit();
+    void MenuView();
+    void MenuHelp();
+    void OpenWhatsNew(bool force);
+    void PollUpdates();
+    void CheckForUpdates();   // manual check: reports "up to date" and errors too
+    void DrawUpdateDialogs();
+    int openMenu = -1, lastOpenMenu = -1;
+    bool showUpdate = false, showWhatsNew = false, showAbout = false;
+    bool manualUpdateCheck = false;
+    bool checkUpdates = true;
+    float uiScale = 1.15f;       // View > Interface scale; multiplies the monitor DPI
+    float baseDpi = 1.0f;
+    float pendingUiScale = 0;
+    std::string skippedVersion, lastSeenVersion, whatsNewText;
+    updater::Release latestRelease;
     void HandleShortcuts();
 
     float leftW = 0, rightW = 0;
