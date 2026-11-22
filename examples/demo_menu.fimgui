@@ -1,0 +1,2722 @@
+{
+ "assets": {
+  "a_Icon_aim": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g fill='none' stroke='#FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='8'/><path d='M12 2v5M12 17v5M2 12h5M17 12h5'/></g></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Icon_aim",
+   "width": 24
+  },
+  "a_Icon_eye": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g fill='none' stroke='#FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12C4.5 7 8 5 12 5s7.5 2 10 7c-2.5 5-6 7-10 7s-7.5-2-10-7z'/><circle cx='12' cy='12' r='3'/></g></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Icon_eye",
+   "width": 24
+  },
+  "a_Icon_gear": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g fill='none' stroke='#FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'/><circle cx='12' cy='12' r='7.5'/><path d='M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1'/></g></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Icon_gear",
+   "width": 24
+  },
+  "a_Icon_misc": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><g fill='none' stroke='#FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h10M18 7h2M4 17h4M12 17h8'/><circle cx='16' cy='7' r='2'/><circle cx='10' cy='17' r='2'/></g></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Icon_misc",
+   "width": 24
+  }
+ },
+ "canvasColor": "#1E1E1E",
+ "format": "fimgui",
+ "name": "Nexus demo",
+ "nextId": 5,
+ "nodes": [
+  {
+   "children": [
+    {
+     "children": [
+      {
+       "fill": "#FFFFFF0D",
+       "h": 480.0,
+       "id": "divider",
+       "name": "Divider",
+       "type": "rect",
+       "w": 1.0,
+       "x": 183.0,
+       "y": 0.0
+      },
+      {
+       "alignCross": "center",
+       "alignMain": "center",
+       "children": [
+        {
+         "fill": "#FFFFFF",
+         "font": "Inter",
+         "fontSize": 15.0,
+         "fontStyle": "Bold",
+         "h": 18.0,
+         "id": "logo_letter",
+         "name": "Logo letter",
+         "text": "N",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 10.0,
+         "x": 10.0,
+         "y": 6.0
+        }
+       ],
+       "fill": {
+        "angle": 45.0,
+        "from": "#5B7CFF",
+        "to": "#A05BFF",
+        "type": "linear"
+       },
+       "gap": 8.0,
+       "h": 30.0,
+       "id": "logo_mark",
+       "layout": "horizontal",
+       "name": "Logo",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "radius": 8.0,
+       "type": "frame",
+       "w": 30.0,
+       "x": 20.0,
+       "y": 22.0
+      },
+      {
+       "fill": "#F2F2F5",
+       "font": "Inter",
+       "fontSize": 15.0,
+       "fontStyle": "Bold",
+       "h": 18.0,
+       "id": "logo_title",
+       "name": "Title",
+       "text": "NEXUS",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 44.0,
+       "x": 60.0,
+       "y": 20.0
+      },
+      {
+       "fill": "#8B8B99",
+       "font": "Inter",
+       "fontSize": 11.0,
+       "h": 14.0,
+       "id": "logo_sub",
+       "name": "Version",
+       "text": "build 2.4.1",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 44.0,
+       "x": 60.0,
+       "y": 39.0
+      },
+      {
+       "fill": "#5E5E6E",
+       "font": "Inter",
+       "fontSize": 10.0,
+       "fontStyle": "SemiBold",
+       "h": 12.0,
+       "id": "menu_label",
+       "name": "Section label",
+       "text": "MENU",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 25.0,
+       "x": 22.0,
+       "y": 80.0
+      },
+      {
+       "children": [
+        {
+         "activeColor": "#5B7CFF26",
+         "children": [
+          {
+           "fill": "#5B7CFF",
+           "h": 16.0,
+           "id": "tab_aim_bar",
+           "name": "Indicator",
+           "radius": 2.0,
+           "showIf": {
+            "not": false,
+            "value": 0.0,
+            "var": "tab"
+           },
+           "type": "rect",
+           "w": 3.0,
+           "x": 0.0,
+           "y": 11.0
+          },
+          {
+           "asset": "a_Icon_aim",
+           "fill": "#B4B4C3",
+           "h": 16.0,
+           "id": "tab_aim_icon",
+           "name": "Icon aim",
+           "recolor": true,
+           "type": "vector",
+           "w": 16.0,
+           "x": 14.0,
+           "y": 11.0
+          },
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "fontStyle": "Medium",
+           "h": 16.0,
+           "id": "tab_aim_label",
+           "name": "Label",
+           "text": "Aimbot",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 37.0,
+           "x": 40.0,
+           "y": 11.0
+          }
+         ],
+         "fill": "#FFFFFF00",
+         "fillW": true,
+         "h": 38.0,
+         "hoverColor": "#FFFFFF0A",
+         "id": "tab_aim",
+         "name": "Tab Aimbot",
+         "radius": 9.0,
+         "role": "tab",
+         "type": "frame",
+         "var": "tab",
+         "w": 160.0,
+         "x": 0.0,
+         "y": 0.0
+        },
+        {
+         "activeColor": "#5B7CFF26",
+         "children": [
+          {
+           "fill": "#5B7CFF",
+           "h": 16.0,
+           "id": "tab_vis_bar",
+           "name": "Indicator",
+           "radius": 2.0,
+           "showIf": {
+            "not": false,
+            "value": 1.0,
+            "var": "tab"
+           },
+           "type": "rect",
+           "w": 3.0,
+           "x": 0.0,
+           "y": 11.0
+          },
+          {
+           "asset": "a_Icon_eye",
+           "fill": "#B4B4C3",
+           "h": 16.0,
+           "id": "tab_vis_icon",
+           "name": "Icon eye",
+           "recolor": true,
+           "type": "vector",
+           "w": 16.0,
+           "x": 14.0,
+           "y": 11.0
+          },
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "fontStyle": "Medium",
+           "h": 16.0,
+           "id": "tab_vis_label",
+           "name": "Label",
+           "text": "Visuals",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 38.0,
+           "x": 40.0,
+           "y": 11.0
+          }
+         ],
+         "fill": "#FFFFFF00",
+         "fillW": true,
+         "h": 38.0,
+         "hoverColor": "#FFFFFF0A",
+         "id": "tab_vis",
+         "name": "Tab Visuals",
+         "radius": 9.0,
+         "role": "tab",
+         "type": "frame",
+         "value": 1.0,
+         "var": "tab",
+         "w": 160.0,
+         "x": 0.0,
+         "y": 42.0
+        },
+        {
+         "activeColor": "#5B7CFF26",
+         "children": [
+          {
+           "fill": "#5B7CFF",
+           "h": 16.0,
+           "id": "tab_misc_bar",
+           "name": "Indicator",
+           "radius": 2.0,
+           "showIf": {
+            "not": false,
+            "value": 2.0,
+            "var": "tab"
+           },
+           "type": "rect",
+           "w": 3.0,
+           "x": 0.0,
+           "y": 11.0
+          },
+          {
+           "asset": "a_Icon_misc",
+           "fill": "#B4B4C3",
+           "h": 16.0,
+           "id": "tab_misc_icon",
+           "name": "Icon misc",
+           "recolor": true,
+           "type": "vector",
+           "w": 16.0,
+           "x": 14.0,
+           "y": 11.0
+          },
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "fontStyle": "Medium",
+           "h": 16.0,
+           "id": "tab_misc_label",
+           "name": "Label",
+           "text": "Misc",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 25.0,
+           "x": 40.0,
+           "y": 11.0
+          }
+         ],
+         "fill": "#FFFFFF00",
+         "fillW": true,
+         "h": 38.0,
+         "hoverColor": "#FFFFFF0A",
+         "id": "tab_misc",
+         "name": "Tab Misc",
+         "radius": 9.0,
+         "role": "tab",
+         "type": "frame",
+         "value": 2.0,
+         "var": "tab",
+         "w": 160.0,
+         "x": 0.0,
+         "y": 84.0
+        },
+        {
+         "activeColor": "#5B7CFF26",
+         "children": [
+          {
+           "fill": "#5B7CFF",
+           "h": 16.0,
+           "id": "tab_set_bar",
+           "name": "Indicator",
+           "radius": 2.0,
+           "showIf": {
+            "not": false,
+            "value": 3.0,
+            "var": "tab"
+           },
+           "type": "rect",
+           "w": 3.0,
+           "x": 0.0,
+           "y": 11.0
+          },
+          {
+           "asset": "a_Icon_gear",
+           "fill": "#B4B4C3",
+           "h": 16.0,
+           "id": "tab_set_icon",
+           "name": "Icon gear",
+           "recolor": true,
+           "type": "vector",
+           "w": 16.0,
+           "x": 14.0,
+           "y": 11.0
+          },
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "fontStyle": "Medium",
+           "h": 16.0,
+           "id": "tab_set_label",
+           "name": "Label",
+           "text": "Settings",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 43.0,
+           "x": 40.0,
+           "y": 11.0
+          }
+         ],
+         "fill": "#FFFFFF00",
+         "fillW": true,
+         "h": 38.0,
+         "hoverColor": "#FFFFFF0A",
+         "id": "tab_set",
+         "name": "Tab Settings",
+         "radius": 9.0,
+         "role": "tab",
+         "type": "frame",
+         "value": 3.0,
+         "var": "tab",
+         "w": 160.0,
+         "x": 0.0,
+         "y": 126.0
+        }
+       ],
+       "fill": "none",
+       "gap": 4.0,
+       "h": 164.0,
+       "hugH": true,
+       "id": "tabs",
+       "layout": "vertical",
+       "name": "Tabs",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "type": "frame",
+       "w": 160.0,
+       "x": 12.0,
+       "y": 98.0
+      },
+      {
+       "children": [
+        {
+         "fill": {
+          "angle": 45.0,
+          "from": "#F59E0B",
+          "to": "#EF4444",
+          "type": "linear"
+         },
+         "h": 28.0,
+         "id": "avatar",
+         "name": "Avatar",
+         "type": "ellipse",
+         "w": 28.0,
+         "x": 10.0,
+         "y": 9.0
+        },
+        {
+         "fill": "#E6E6EC",
+         "font": "Inter",
+         "fontSize": 12.0,
+         "fontStyle": "Medium",
+         "h": 15.0,
+         "id": "user_name",
+         "name": "User name",
+         "text": "player_one",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 52.0,
+         "x": 46.0,
+         "y": 8.0
+        },
+        {
+         "fill": "#8B8B99",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "h": 12.0,
+         "id": "user_plan",
+         "name": "Plan",
+         "text": "Premium · 28 days",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 73.0,
+         "x": 46.0,
+         "y": 25.0
+        }
+       ],
+       "fill": "#1D1D24",
+       "h": 46.0,
+       "id": "user_card",
+       "name": "User",
+       "radius": 10.0,
+       "type": "frame",
+       "w": 160.0,
+       "x": 12.0,
+       "y": 420.0
+      }
+     ],
+     "fill": "#16161B",
+     "h": 480.0,
+     "id": "sidebar",
+     "name": "Sidebar",
+     "radius": [
+      14.0,
+      0.0,
+      0.0,
+      14.0
+     ],
+     "type": "frame",
+     "w": 184.0,
+     "x": 0.0,
+     "y": 0.0
+    },
+    {
+     "children": [
+      {
+       "alignCross": "center",
+       "alignMain": "space-between",
+       "children": [
+        {
+         "fill": "#F5F5F7",
+         "font": "Inter",
+         "fontSize": 20.0,
+         "fontStyle": "SemiBold",
+         "h": 24.0,
+         "id": "page_aim_title",
+         "name": "Title",
+         "text": "Aimbot",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 58.0,
+         "x": 0.0,
+         "y": 3.0
+        },
+        {
+         "children": [
+          {
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#4ADE80",
+             "font": "Inter",
+             "fontSize": 11.0,
+             "fontStyle": "SemiBold",
+             "h": 14.0,
+             "id": "badge_on_t",
+             "name": "Text",
+             "text": "Active",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 29.0,
+             "x": 10.0,
+             "y": 4.0
+            }
+           ],
+           "fill": "#22C55E1F",
+           "gap": 8.0,
+           "h": 22.0,
+           "hugW": true,
+           "id": "badge_on",
+           "layout": "horizontal",
+           "name": "Badge active",
+           "padding": [
+            10.0,
+            4.0,
+            10.0,
+            4.0
+           ],
+           "radius": 11.0,
+           "showIf": {
+            "not": false,
+            "value": 1.0,
+            "var": "aim_enabled"
+           },
+           "type": "frame",
+           "w": 49.0,
+           "x": 14.0,
+           "y": 0.0
+          },
+          {
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#8B8B99",
+             "font": "Inter",
+             "fontSize": 11.0,
+             "fontStyle": "SemiBold",
+             "h": 14.0,
+             "id": "badge_off_t",
+             "name": "Text",
+             "text": "Disabled",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 39.0,
+             "x": 10.0,
+             "y": 4.0
+            }
+           ],
+           "fill": "#FFFFFF0F",
+           "gap": 8.0,
+           "h": 22.0,
+           "hugW": true,
+           "id": "badge_off",
+           "layout": "horizontal",
+           "name": "Badge disabled",
+           "padding": [
+            10.0,
+            4.0,
+            10.0,
+            4.0
+           ],
+           "radius": 11.0,
+           "showIf": {
+            "not": true,
+            "value": 1.0,
+            "var": "aim_enabled"
+           },
+           "type": "frame",
+           "w": 59.0,
+           "x": 0.0,
+           "y": 0.0
+          }
+         ],
+         "clip": false,
+         "fill": "none",
+         "h": 22.0,
+         "id": "badge",
+         "name": "Status badge",
+         "type": "frame",
+         "w": 74.0,
+         "x": 422.0,
+         "y": 4.0
+        }
+       ],
+       "fill": "none",
+       "fillW": true,
+       "gap": 8.0,
+       "h": 30.0,
+       "id": "page_aim_head",
+       "layout": "horizontal",
+       "name": "Header",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_general_title",
+         "name": "Card title",
+         "text": "GENERAL",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 39.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_aim_enabled_label",
+           "name": "Label",
+           "text": "Enable aimbot",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 72.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_aim_enabled_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "aim_enabled"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_aim_enabled_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "aim_enabled"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_aim_enabled",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "value": 1.0,
+           "var": "aim_enabled",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_aim_enabled",
+         "layout": "horizontal",
+         "name": "Enable aimbot",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_aim_visible_label",
+           "name": "Label",
+           "text": "Visibility check",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 77.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_aim_visible_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "aim_visible"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_aim_visible_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "aim_visible"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_aim_visible",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "value": 1.0,
+           "var": "aim_visible",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_aim_visible",
+         "layout": "horizontal",
+         "name": "Visibility check",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 78.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_aim_autofire_label",
+           "name": "Label",
+           "text": "Auto fire",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 44.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_aim_autofire_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "aim_autofire"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_aim_autofire_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "aim_autofire"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_aim_autofire",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "var": "aim_autofire",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_aim_autofire",
+         "layout": "horizontal",
+         "name": "Auto fire",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 114.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 152.0,
+       "hugH": true,
+       "id": "card_general",
+       "layout": "vertical",
+       "name": "Card General",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 44.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_precision_title",
+         "name": "Card title",
+         "text": "PRECISION",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 45.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "children": [
+          {
+           "alignCross": "center",
+           "alignMain": "space-between",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 13.0,
+             "h": 16.0,
+             "id": "blk_fov_label",
+             "name": "Label",
+             "text": "Field of view",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 65.0,
+             "x": 0.0,
+             "y": 1.0
+            },
+            {
+             "fill": "#A9B8FF",
+             "font": "Inter",
+             "fontSize": 12.0,
+             "fontStyle": "Medium",
+             "h": 15.0,
+             "id": "blk_fov_value",
+             "name": "Value",
+             "text": "{fov:%.0f}°",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 18.0,
+             "x": 446.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "none",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 18.0,
+           "id": "blk_fov_row",
+           "layout": "horizontal",
+           "name": "Row",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "type": "frame",
+           "w": 464.0,
+           "x": 0.0,
+           "y": 0.0
+          },
+          {
+           "children": [
+            {
+             "fill": {
+              "angle": 0.0,
+              "from": "#5B7CFF",
+              "to": "#9B6BFF",
+              "type": "linear"
+             },
+             "h": 6.0,
+             "id": "sl_fov_fill",
+             "name": "Fill",
+             "radius": 3.0,
+             "sliderPart": "fill",
+             "type": "rect",
+             "w": 100.0,
+             "x": 0.0,
+             "y": 0.0
+            },
+            {
+             "h": 16.0,
+             "id": "sl_fov_knob",
+             "name": "Knob",
+             "sliderPart": "knob",
+             "stroke": "#5B7CFF",
+             "strokeWidth": 3.0,
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 0.0,
+             "y": -5.0
+            }
+           ],
+           "clip": false,
+           "fill": "#2A2A33",
+           "fillW": true,
+           "h": 6.0,
+           "id": "sl_fov",
+           "max": 180.0,
+           "min": 1.0,
+           "name": "Slider",
+           "radius": 3.0,
+           "role": "slider",
+           "type": "frame",
+           "value": 90.0,
+           "var": "fov",
+           "w": 464.0,
+           "x": 0.0,
+           "y": 28.0
+          }
+         ],
+         "clip": false,
+         "fill": "none",
+         "fillW": true,
+         "gap": 10.0,
+         "h": 34.0,
+         "hugH": true,
+         "id": "blk_fov",
+         "layout": "vertical",
+         "name": "Field of view",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        },
+        {
+         "children": [
+          {
+           "alignCross": "center",
+           "alignMain": "space-between",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 13.0,
+             "h": 16.0,
+             "id": "blk_smooth_label",
+             "name": "Label",
+             "text": "Smoothing",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 55.0,
+             "x": 0.0,
+             "y": 1.0
+            },
+            {
+             "fill": "#A9B8FF",
+             "font": "Inter",
+             "fontSize": 12.0,
+             "fontStyle": "Medium",
+             "h": 15.0,
+             "id": "blk_smooth_value",
+             "name": "Value",
+             "text": "{smooth:%.1f}",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 16.0,
+             "x": 448.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "none",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 18.0,
+           "id": "blk_smooth_row",
+           "layout": "horizontal",
+           "name": "Row",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "type": "frame",
+           "w": 464.0,
+           "x": 0.0,
+           "y": 0.0
+          },
+          {
+           "children": [
+            {
+             "fill": {
+              "angle": 0.0,
+              "from": "#5B7CFF",
+              "to": "#9B6BFF",
+              "type": "linear"
+             },
+             "h": 6.0,
+             "id": "sl_smooth_fill",
+             "name": "Fill",
+             "radius": 3.0,
+             "sliderPart": "fill",
+             "type": "rect",
+             "w": 100.0,
+             "x": 0.0,
+             "y": 0.0
+            },
+            {
+             "h": 16.0,
+             "id": "sl_smooth_knob",
+             "name": "Knob",
+             "sliderPart": "knob",
+             "stroke": "#5B7CFF",
+             "strokeWidth": 3.0,
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 0.0,
+             "y": -5.0
+            }
+           ],
+           "clip": false,
+           "fill": "#2A2A33",
+           "fillW": true,
+           "h": 6.0,
+           "id": "sl_smooth",
+           "max": 20.0,
+           "min": 0.0,
+           "name": "Slider",
+           "radius": 3.0,
+           "role": "slider",
+           "type": "frame",
+           "value": 6.0,
+           "var": "smooth",
+           "w": 464.0,
+           "x": 0.0,
+           "y": 28.0
+          }
+         ],
+         "clip": false,
+         "fill": "none",
+         "fillW": true,
+         "gap": 10.0,
+         "h": 34.0,
+         "hugH": true,
+         "id": "blk_smooth",
+         "layout": "vertical",
+         "name": "Smoothing",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 90.0
+        },
+        {
+         "fill": "#E6E6EC",
+         "font": "Inter",
+         "fontSize": 13.0,
+         "h": 16.0,
+         "id": "bone_label",
+         "name": "Bone label",
+         "text": "Target bone",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 63.0,
+         "x": 16.0,
+         "y": 138.0
+        },
+        {
+         "children": [
+          {
+           "activeColor": "#5B7CFF",
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 12.0,
+             "fontStyle": "Medium",
+             "h": 15.0,
+             "id": "bone_head_t",
+             "name": "Text",
+             "text": "Head",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 25.0,
+             "x": 63.0,
+             "y": 9.0
+            }
+           ],
+           "fill": "#22222A",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 32.0,
+           "hoverColor": "#2B2B34",
+           "id": "bone_head",
+           "layout": "horizontal",
+           "name": "Head",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "radius": 8.0,
+           "role": "tab",
+           "type": "frame",
+           "var": "bone",
+           "w": 150.6699981689453,
+           "x": 0.0,
+           "y": 0.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 12.0,
+             "fontStyle": "Medium",
+             "h": 15.0,
+             "id": "bone_neck_t",
+             "name": "Text",
+             "text": "Neck",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 25.0,
+             "x": 63.0,
+             "y": 9.0
+            }
+           ],
+           "fill": "#22222A",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 32.0,
+           "hoverColor": "#2B2B34",
+           "id": "bone_neck",
+           "layout": "horizontal",
+           "name": "Neck",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "radius": 8.0,
+           "role": "tab",
+           "type": "frame",
+           "value": 1.0,
+           "var": "bone",
+           "w": 150.6699981689453,
+           "x": 157.0,
+           "y": 0.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 12.0,
+             "fontStyle": "Medium",
+             "h": 15.0,
+             "id": "bone_chest_t",
+             "name": "Text",
+             "text": "Chest",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 28.0,
+             "x": 61.0,
+             "y": 9.0
+            }
+           ],
+           "fill": "#22222A",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 32.0,
+           "hoverColor": "#2B2B34",
+           "id": "bone_chest",
+           "layout": "horizontal",
+           "name": "Chest",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "radius": 8.0,
+           "role": "tab",
+           "type": "frame",
+           "value": 2.0,
+           "var": "bone",
+           "w": 150.6699981689453,
+           "x": 313.0,
+           "y": 0.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 6.0,
+         "h": 32.0,
+         "id": "bone_row",
+         "layout": "horizontal",
+         "name": "Bone selector",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 168.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 216.0,
+       "hugH": true,
+       "id": "card_precision",
+       "layout": "vertical",
+       "name": "Card Precision",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 210.0
+      }
+     ],
+     "fill": "none",
+     "gap": 14.0,
+     "h": 440.0,
+     "id": "page_aim",
+     "layout": "vertical",
+     "name": "Page Aimbot",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "showIf": {
+      "not": false,
+      "value": 0.0,
+      "var": "tab"
+     },
+     "type": "frame",
+     "w": 496.0,
+     "x": 204.0,
+     "y": 22.0
+    },
+    {
+     "children": [
+      {
+       "alignCross": "center",
+       "alignMain": "space-between",
+       "children": [
+        {
+         "fill": "#F5F5F7",
+         "font": "Inter",
+         "fontSize": 20.0,
+         "fontStyle": "SemiBold",
+         "h": 24.0,
+         "id": "page_vis_title",
+         "name": "Title",
+         "text": "Visuals",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 59.0,
+         "x": 0.0,
+         "y": 3.0
+        }
+       ],
+       "fill": "none",
+       "fillW": true,
+       "gap": 8.0,
+       "h": 30.0,
+       "id": "page_vis_head",
+       "layout": "horizontal",
+       "name": "Header",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_esp_title",
+         "name": "Card title",
+         "text": "ESP",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 16.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_box_esp_label",
+           "name": "Label",
+           "text": "Box ESP",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 43.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_box_esp_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "box_esp"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_box_esp_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "box_esp"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_box_esp",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "value": 1.0,
+           "var": "box_esp",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_box_esp",
+         "layout": "horizontal",
+         "name": "Box ESP",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_skeleton_label",
+           "name": "Label",
+           "text": "Skeleton",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 45.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_skeleton_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "skeleton"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_skeleton_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "skeleton"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_skeleton",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "var": "skeleton",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_skeleton",
+         "layout": "horizontal",
+         "name": "Skeleton",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 78.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_health_bar_label",
+           "name": "Label",
+           "text": "Health bar",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 53.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_health_bar_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "health_bar"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_health_bar_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "health_bar"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_health_bar",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "value": 1.0,
+           "var": "health_bar",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_health_bar",
+         "layout": "horizontal",
+         "name": "Health bar",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 114.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_name_tags_label",
+           "name": "Label",
+           "text": "Name tags",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 55.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_name_tags_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "name_tags"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_name_tags_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "name_tags"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_name_tags",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "value": 1.0,
+           "var": "name_tags",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_name_tags",
+         "layout": "horizontal",
+         "name": "Name tags",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 150.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 188.0,
+       "hugH": true,
+       "id": "card_esp",
+       "layout": "vertical",
+       "name": "Card ESP",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 44.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_range_title",
+         "name": "Card title",
+         "text": "RANGE",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 29.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "children": [
+          {
+           "alignCross": "center",
+           "alignMain": "space-between",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 13.0,
+             "h": 16.0,
+             "id": "blk_esp_dist_label",
+             "name": "Label",
+             "text": "Max distance",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 68.0,
+             "x": 0.0,
+             "y": 1.0
+            },
+            {
+             "fill": "#A9B8FF",
+             "font": "Inter",
+             "fontSize": 12.0,
+             "fontStyle": "Medium",
+             "h": 15.0,
+             "id": "blk_esp_dist_value",
+             "name": "Value",
+             "text": "{esp_dist:%.0f} m",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 30.0,
+             "x": 434.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "none",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 18.0,
+           "id": "blk_esp_dist_row",
+           "layout": "horizontal",
+           "name": "Row",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "type": "frame",
+           "w": 464.0,
+           "x": 0.0,
+           "y": 0.0
+          },
+          {
+           "children": [
+            {
+             "fill": {
+              "angle": 0.0,
+              "from": "#5B7CFF",
+              "to": "#9B6BFF",
+              "type": "linear"
+             },
+             "h": 6.0,
+             "id": "sl_esp_dist_fill",
+             "name": "Fill",
+             "radius": 3.0,
+             "sliderPart": "fill",
+             "type": "rect",
+             "w": 100.0,
+             "x": 0.0,
+             "y": 0.0
+            },
+            {
+             "h": 16.0,
+             "id": "sl_esp_dist_knob",
+             "name": "Knob",
+             "sliderPart": "knob",
+             "stroke": "#5B7CFF",
+             "strokeWidth": 3.0,
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 0.0,
+             "y": -5.0
+            }
+           ],
+           "clip": false,
+           "fill": "#2A2A33",
+           "fillW": true,
+           "h": 6.0,
+           "id": "sl_esp_dist",
+           "max": 500.0,
+           "min": 0.0,
+           "name": "Slider",
+           "radius": 3.0,
+           "role": "slider",
+           "type": "frame",
+           "value": 250.0,
+           "var": "esp_dist",
+           "w": 464.0,
+           "x": 0.0,
+           "y": 28.0
+          }
+         ],
+         "clip": false,
+         "fill": "none",
+         "fillW": true,
+         "gap": 10.0,
+         "h": 34.0,
+         "hugH": true,
+         "id": "blk_esp_dist",
+         "layout": "vertical",
+         "name": "Max distance",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 92.0,
+       "hugH": true,
+       "id": "card_range",
+       "layout": "vertical",
+       "name": "Card Range",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 246.0
+      }
+     ],
+     "fill": "none",
+     "gap": 14.0,
+     "h": 440.0,
+     "id": "page_vis",
+     "layout": "vertical",
+     "name": "Page Visuals",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "showIf": {
+      "not": false,
+      "value": 1.0,
+      "var": "tab"
+     },
+     "type": "frame",
+     "w": 496.0,
+     "x": 204.0,
+     "y": 22.0
+    },
+    {
+     "children": [
+      {
+       "alignCross": "center",
+       "alignMain": "space-between",
+       "children": [
+        {
+         "fill": "#F5F5F7",
+         "font": "Inter",
+         "fontSize": 20.0,
+         "fontStyle": "SemiBold",
+         "h": 24.0,
+         "id": "page_misc_title",
+         "name": "Title",
+         "text": "Misc",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 39.0,
+         "x": 0.0,
+         "y": 3.0
+        }
+       ],
+       "fill": "none",
+       "fillW": true,
+       "gap": 8.0,
+       "h": 30.0,
+       "id": "page_misc_head",
+       "layout": "horizontal",
+       "name": "Header",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_move_title",
+         "name": "Card title",
+         "text": "MOVEMENT",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 50.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_bhop_label",
+           "name": "Label",
+           "text": "Bunny hop",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 55.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_bhop_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "bhop"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_bhop_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "bhop"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_bhop",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "var": "bhop",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_bhop",
+         "layout": "horizontal",
+         "name": "Bunny hop",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_auto_strafe_label",
+           "name": "Label",
+           "text": "Auto strafe",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 57.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_auto_strafe_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "auto_strafe"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_auto_strafe_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "auto_strafe"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_auto_strafe",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "var": "auto_strafe",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_auto_strafe",
+         "layout": "horizontal",
+         "name": "Auto strafe",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 78.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 116.0,
+       "hugH": true,
+       "id": "card_move",
+       "layout": "vertical",
+       "name": "Card Movement",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 44.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_cfg_title",
+         "name": "Card title",
+         "text": "CONFIG",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 33.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "activeColor": "#24243A",
+         "children": [
+          {
+           "fill": "#6B6B7B",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "cfg_placeholder",
+           "name": "Placeholder",
+           "text": "Config name, e.g. legit_v2",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 133.0,
+           "x": 12.0,
+           "y": 10.0
+          }
+         ],
+         "fill": "#1F1F26",
+         "fillW": true,
+         "h": 36.0,
+         "hoverColor": "#23232B",
+         "id": "cfg_input",
+         "name": "Config name",
+         "radius": 8.0,
+         "role": "input",
+         "stroke": "#FFFFFF14",
+         "type": "frame",
+         "var": "cfg_name",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 94.0,
+       "hugH": true,
+       "id": "card_cfg",
+       "layout": "vertical",
+       "name": "Card Config",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 174.0
+      }
+     ],
+     "fill": "none",
+     "gap": 14.0,
+     "h": 440.0,
+     "id": "page_misc",
+     "layout": "vertical",
+     "name": "Page Misc",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "showIf": {
+      "not": false,
+      "value": 2.0,
+      "var": "tab"
+     },
+     "type": "frame",
+     "w": 496.0,
+     "x": 204.0,
+     "y": 22.0
+    },
+    {
+     "children": [
+      {
+       "alignCross": "center",
+       "alignMain": "space-between",
+       "children": [
+        {
+         "fill": "#F5F5F7",
+         "font": "Inter",
+         "fontSize": 20.0,
+         "fontStyle": "SemiBold",
+         "h": 24.0,
+         "id": "page_set_title",
+         "name": "Title",
+         "text": "Settings",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 67.0,
+         "x": 0.0,
+         "y": 3.0
+        }
+       ],
+       "fill": "none",
+       "fillW": true,
+       "gap": 8.0,
+       "h": 30.0,
+       "id": "page_set_head",
+       "layout": "horizontal",
+       "name": "Header",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "children": [
+        {
+         "fill": "#6B6B7B",
+         "font": "Inter",
+         "fontSize": 10.0,
+         "fontStyle": "SemiBold",
+         "h": 12.0,
+         "id": "card_ui_title",
+         "name": "Card title",
+         "text": "INTERFACE",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 47.0,
+         "x": 16.0,
+         "y": 16.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_watermark_label",
+           "name": "Label",
+           "text": "Show watermark",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 86.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_watermark_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "watermark"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_watermark_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "watermark"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_watermark",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "value": 1.0,
+           "var": "watermark",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_watermark",
+         "layout": "horizontal",
+         "name": "Show watermark",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 42.0
+        },
+        {
+         "alignCross": "center",
+         "alignMain": "space-between",
+         "children": [
+          {
+           "fill": "#E6E6EC",
+           "font": "Inter",
+           "fontSize": 13.0,
+           "h": 16.0,
+           "id": "row_streamproof_label",
+           "name": "Label",
+           "text": "Hide from screen capture",
+           "textSizing": "auto-width",
+           "type": "text",
+           "w": 131.0,
+           "x": 0.0,
+           "y": 3.0
+          },
+          {
+           "activeColor": "#5B7CFF",
+           "children": [
+            {
+             "fill": "#C9C9D3",
+             "h": 16.0,
+             "id": "tg_streamproof_off",
+             "name": "Knob off",
+             "showIf": {
+              "not": true,
+              "value": 1.0,
+              "var": "streamproof"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 2.0,
+             "y": 2.0
+            },
+            {
+             "h": 16.0,
+             "id": "tg_streamproof_on",
+             "name": "Knob on",
+             "showIf": {
+              "not": false,
+              "value": 1.0,
+              "var": "streamproof"
+             },
+             "type": "ellipse",
+             "w": 16.0,
+             "x": 18.0,
+             "y": 2.0
+            }
+           ],
+           "fill": "#2C2C35",
+           "h": 20.0,
+           "hoverColor": "#363641",
+           "id": "tg_streamproof",
+           "name": "Toggle",
+           "radius": 10.0,
+           "role": "checkbox",
+           "type": "frame",
+           "var": "streamproof",
+           "w": 36.0,
+           "x": 428.0,
+           "y": 1.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 22.0,
+         "id": "row_streamproof",
+         "layout": "horizontal",
+         "name": "Hide from screen capture",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 78.0
+        },
+        {
+         "children": [
+          {
+           "activeColor": "#4A68E8",
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#FFFFFF",
+             "font": "Inter",
+             "fontSize": 13.0,
+             "fontStyle": "SemiBold",
+             "h": 16.0,
+             "id": "btn_save_t",
+             "name": "Text",
+             "text": "Save config",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 62.0,
+             "x": 83.0,
+             "y": 10.0
+            }
+           ],
+           "fill": "#5B7CFF",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 36.0,
+           "hoverColor": "#6E8BFF",
+           "id": "btn_save",
+           "layout": "horizontal",
+           "name": "Save config",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "radius": 8.0,
+           "role": "button",
+           "type": "frame",
+           "w": 228.0,
+           "x": 0.0,
+           "y": 0.0
+          },
+          {
+           "activeColor": "#1E1E25",
+           "alignCross": "center",
+           "alignMain": "center",
+           "children": [
+            {
+             "fill": "#E6E6EC",
+             "font": "Inter",
+             "fontSize": 13.0,
+             "fontStyle": "Medium",
+             "h": 16.0,
+             "id": "btn_load_t",
+             "name": "Text",
+             "text": "Load config",
+             "textSizing": "auto-width",
+             "type": "text",
+             "w": 61.0,
+             "x": 84.0,
+             "y": 10.0
+            }
+           ],
+           "fill": "#24242C",
+           "fillW": true,
+           "gap": 8.0,
+           "h": 36.0,
+           "hoverColor": "#2E2E38",
+           "id": "btn_load",
+           "layout": "horizontal",
+           "name": "Load config",
+           "padding": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+           ],
+           "radius": 8.0,
+           "role": "button",
+           "type": "frame",
+           "w": 228.0,
+           "x": 236.0,
+           "y": 0.0
+          }
+         ],
+         "fill": "none",
+         "fillW": true,
+         "gap": 8.0,
+         "h": 36.0,
+         "id": "btn_row",
+         "layout": "horizontal",
+         "name": "Buttons",
+         "padding": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+         ],
+         "type": "frame",
+         "w": 464.0,
+         "x": 16.0,
+         "y": 114.0
+        }
+       ],
+       "fill": "#18181E",
+       "fillW": true,
+       "gap": 14.0,
+       "h": 166.0,
+       "hugH": true,
+       "id": "card_ui",
+       "layout": "vertical",
+       "name": "Card Interface",
+       "padding": [
+        16.0,
+        16.0,
+        16.0,
+        16.0
+       ],
+       "radius": 12.0,
+       "stroke": "#FFFFFF0D",
+       "type": "frame",
+       "w": 496.0,
+       "x": 0.0,
+       "y": 44.0
+      }
+     ],
+     "fill": "none",
+     "gap": 14.0,
+     "h": 440.0,
+     "id": "page_set",
+     "layout": "vertical",
+     "name": "Page Settings",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "showIf": {
+      "not": false,
+      "value": 3.0,
+      "var": "tab"
+     },
+     "type": "frame",
+     "w": 496.0,
+     "x": 204.0,
+     "y": 22.0
+    }
+   ],
+   "fill": "#111115",
+   "h": 480.0,
+   "id": "menu",
+   "name": "Nexus Menu",
+   "radius": 14.0,
+   "shadow": {
+    "blur": 40.0,
+    "color": "#00000099",
+    "spread": 0.0,
+    "type": "drop",
+    "x": 0.0,
+    "y": 18.0
+   },
+   "stroke": "#FFFFFF12",
+   "type": "frame",
+   "w": 720.0,
+   "x": 0.0,
+   "y": 0.0
+  }
+ ],
+ "version": 1
+}

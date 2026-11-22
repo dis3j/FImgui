@@ -1,0 +1,189 @@
+{
+ "assets": {
+  "a_Arrow": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'><g fill='none' stroke='#FFFFFF' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></g></svg>",
+   "height": 16,
+   "kind": "svg",
+   "name": "Arrow",
+   "width": 16
+  }
+ },
+ "canvasColor": "#1E1E1E",
+ "format": "fimgui",
+ "name": "Combo demo",
+ "nextId": 3,
+ "nodes": [
+  {
+   "children": [
+    {
+     "fill": "#8B8B99",
+     "font": "Inter",
+     "fontSize": 12.0,
+     "fontStyle": "Medium",
+     "h": 15.0,
+     "id": "lbl1",
+     "text": "Aim bone",
+     "textSizing": "auto-width",
+     "type": "text",
+     "w": 45.0,
+     "x": 24.0,
+     "y": 24.0
+    },
+    {
+     "activeColor": "#2A2A36",
+     "children": [
+      {
+       "fill": "#E6E6EC",
+       "font": "Inter",
+       "fontSize": 13.0,
+       "h": 16.0,
+       "id": "cb_bone_t",
+       "name": "Value",
+       "text": "{aim_bone:label}",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 27.0,
+       "x": 12.0,
+       "y": 9.0
+      },
+      {
+       "asset": "a_Arrow",
+       "fill": "#FFFFFF99",
+       "h": 16.0,
+       "id": "cb_bone_arrow",
+       "name": "Arrow",
+       "recolor": true,
+       "type": "vector",
+       "w": 16.0,
+       "x": 214.0,
+       "y": 9.0
+      }
+     ],
+     "fill": "#1E1E26",
+     "h": 34.0,
+     "hoverColor": "#26262F",
+     "id": "cb_bone",
+     "listAccent": "#5B7CFF",
+     "listFill": "#18181EF8",
+     "name": "Bone combo",
+     "options": [
+      "Head",
+      "Neck",
+      "Chest",
+      "Pelvis"
+     ],
+     "radius": 8.0,
+     "role": "combo",
+     "stroke": "#FFFFFF14",
+     "type": "frame",
+     "var": "aim_bone",
+     "w": 240.0,
+     "x": 24.0,
+     "y": 51.0
+    },
+    {
+     "fill": "#8B8B99",
+     "font": "Inter",
+     "fontSize": 12.0,
+     "fontStyle": "Medium",
+     "h": 15.0,
+     "id": "lbl2",
+     "text": "ESP targets",
+     "textSizing": "auto-width",
+     "type": "text",
+     "w": 55.0,
+     "x": 24.0,
+     "y": 97.0
+    },
+    {
+     "activeColor": "#2A2A36",
+     "allLabel": "Everything",
+     "children": [
+      {
+       "fill": "#E6E6EC",
+       "font": "Inter",
+       "fontSize": 13.0,
+       "h": 16.0,
+       "id": "cb_targets_t",
+       "name": "Value",
+       "text": "{esp_targets:label}",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 67.0,
+       "x": 12.0,
+       "y": 9.0
+      },
+      {
+       "asset": "a_Arrow",
+       "fill": "#FFFFFF99",
+       "h": 16.0,
+       "id": "cb_targets_arrow",
+       "name": "Arrow",
+       "recolor": true,
+       "type": "vector",
+       "w": 16.0,
+       "x": 294.0,
+       "y": 9.0
+      }
+     ],
+     "fill": "#1E1E26",
+     "h": 34.0,
+     "hoverColor": "#26262F",
+     "id": "cb_targets",
+     "listAccent": "#22C55E",
+     "listFill": "#18181EF8",
+     "name": "Targets multi",
+     "noneLabel": "Nothing",
+     "options": [
+      "Players",
+      "Teammates",
+      "NPC",
+      "Vehicles",
+      "Items"
+     ],
+     "radius": 8.0,
+     "role": "multicombo",
+     "stroke": "#FFFFFF14",
+     "type": "frame",
+     "value": 5.0,
+     "var": "esp_targets",
+     "w": 320.0,
+     "x": 24.0,
+     "y": 124.0
+    },
+    {
+     "fill": "#6B6B7B",
+     "font": "Inter",
+     "fontSize": 12.0,
+     "h": 15.0,
+     "id": "summary",
+     "text": "bone = {aim_bone}, targets mask = {esp_targets}",
+     "textSizing": "auto-width",
+     "type": "text",
+     "w": 127.0,
+     "x": 24.0,
+     "y": 170.0
+    }
+   ],
+   "fill": "#121216",
+   "gap": 12.0,
+   "h": 360.0,
+   "id": "panel",
+   "layout": "vertical",
+   "name": "Combo test",
+   "padding": [
+    24.0,
+    24.0,
+    24.0,
+    24.0
+   ],
+   "radius": 14.0,
+   "stroke": "#FFFFFF12",
+   "type": "frame",
+   "w": 520.0,
+   "x": 0.0,
+   "y": 0.0
+  }
+ ],
+ "version": 1
+}

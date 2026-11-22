@@ -1,0 +1,347 @@
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+#include "app.h"
+#include "fonts.h"
+#include "gfx.h"
+#include "theme.h"
+#include "platform.h"
+#include "../runtime/fimgui_fx.h"
+#include <d3d11.h>
+#include <shellapi.h>
+#include <objbase.h>
+
+HWND g_hwnd = nullptr;
+static ID3D11Device* g_device = nullptr;
+static ID3D11DeviceContext* g_context = nullptr;
+static IDXGISwapChain* g_swapChain = nullptr;
+static ID3D11RenderTargetView* g_rtv = nullptr;
+static UINT g_resizeW = 0, g_resizeH = 0;
+static bool g_occluded = false;
+static App g_appInstance;
+static std::vector<std::string> g_droppedFiles;
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+static void CreateRenderTarget()
+{
+    ID3D11Texture2D* back = nullptr;
+    g_swapChain->GetBuffer(0, IID_PPV_ARGS(&back));
+    g_device->CreateRenderTargetView(back, nullptr, &g_rtv);
+    back->Release();
+}
+
+static void CleanupRenderTarget()
+{
+    if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
+}
+
+static bool CreateDevice(HWND hwnd)
+{
+    DXGI_SWAP_CHAIN_DESC sd = {};
+    sd.BufferCount = 2;
+    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferDesc.RefreshRate.Numerator = 60;
+    sd.BufferDesc.RefreshRate.Denominator = 1;
+    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = hwnd;
+    sd.SampleDesc.Count = 1;
+    sd.Windowed = TRUE;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    const D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0 };
+    D3D_FEATURE_LEVEL got;
+    HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, levels, 2, D3D11_SDK_VERSION, &sd, &g_swapChain, &g_device, &got, &g_context);
+    if (hr == DXGI_ERROR_UNSUPPORTED)
+        hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0, levels, 2, D3D11_SDK_VERSION, &sd, &g_swapChain, &g_device, &got, &g_context);
+    if (hr != S_OK) return false;
+    IDXGIFactory* factory = nullptr;
+    if (SUCCEEDED(g_swapChain->GetParent(IID_PPV_ARGS(&factory)))) { factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER); factory->Release(); }
+    CreateRenderTarget();
+    return true;
+}
+
+static void CleanupDevice()
+{
+    CleanupRenderTarget();
+    if (g_swapChain) g_swapChain->Release();
+    if (g_context) g_context->Release();
+    if (g_device) g_device->Release();
+}
+
+// Saves the back buffer as PNG (used by --screenshot for automated checks).
+static void CaptureBackbuffer(const std::string& path)
+{
+    ID3D11Texture2D* back = nullptr;
+    if (FAILED(g_swapChain->GetBuffer(0, IID_PPV_ARGS(&back)))) return;
+    D3D11_TEXTURE2D_DESC desc;
+    back->GetDesc(&desc);
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.BindFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    desc.MiscFlags = 0;
+    ID3D11Texture2D* staging = nullptr;
+    if (SUCCEEDED(g_device->CreateTexture2D(&desc, nullptr, &staging)))
+    {
+        g_context->CopyResource(staging, back);
+        D3D11_MAPPED_SUBRESOURCE map;
+        if (SUCCEEDED(g_context->Map(staging, 0, D3D11_MAP_READ, 0, &map)))
+        {
+            std::vector<unsigned char> rgba((size_t)desc.Width * desc.Height * 4);
+            for (UINT y = 0; y < desc.Height; y++)
+            {
+                memcpy(&rgba[(size_t)y * desc.Width * 4], (unsigned char*)map.pData + (size_t)y * map.RowPitch, desc.Width * 4);
+                for (UINT x = 0; x < desc.Width; x++) rgba[((size_t)y * desc.Width + x) * 4 + 3] = 255;
+            }
+            g_context->Unmap(staging, 0);
+            auto png = gfx::EncodePNG(rgba.data(), desc.Width, desc.Height);
+            platform::WriteFile(path, png.data(), png.size());
+        }
+        staging->Release();
+    }
+    back->Release();
+}
+
+static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) return true;
+    switch (msg)
+    {
+    case WM_SIZE:
+        if (wParam != SIZE_MINIMIZED) { g_resizeW = LOWORD(lParam); g_resizeH = HIWORD(lParam); }
+        return 0;
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU) return 0;
+        break;
+    case WM_DROPFILES:
+    {
+        HDROP drop = (HDROP)wParam;
+        UINT n = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+        for (UINT i = 0; i < n; i++)
+        {
+            wchar_t buf[MAX_PATH];
+            if (DragQueryFileW(drop, i, buf, MAX_PATH)) g_droppedFiles.push_back(platform::Narrow(buf));
+        }
+        DragFinish(drop);
+        return 0;
+    }
+    case WM_GETMINMAXINFO:
+        ((MINMAXINFO*)lParam)->ptMinTrackSize = { 900, 560 };
+        return 0;
+    case WM_CLOSE:
+        if (g_appInstance.RequestClose()) DestroyWindow(hWnd);
+        return 0;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    }
+    return DefWindowProcW(hWnd, msg, wParam, lParam);
+}
+
+int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
+{
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    ImGui_ImplWin32_EnableDpiAwareness();
+    float dpi = ImGui_ImplWin32_GetDpiScaleForMonitor(MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
+
+    WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, hInst, LoadIcon(hInst, MAKEINTRESOURCE(1)), LoadCursor(nullptr, IDC_ARROW), nullptr, nullptr, L"FimguiWindow", LoadIcon(hInst, MAKEINTRESOURCE(1)) };
+    RegisterClassExW(&wc);
+    g_hwnd = CreateWindowW(wc.lpszClassName, L"Fimgui", WS_OVERLAPPEDWINDOW, 80, 60, (int)(1480 * dpi), (int)(900 * dpi), nullptr, nullptr, hInst, nullptr);
+    if (!CreateDevice(g_hwnd)) { CleanupDevice(); UnregisterClassW(wc.lpszClassName, hInst); return 1; }
+    DragAcceptFiles(g_hwnd, TRUE);
+    ShowWindow(g_hwnd, SW_SHOWMAXIMIZED);
+    UpdateWindow(g_hwnd);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
+    io.ConfigInputTextCursorBlink = true;
+
+    ImGui_ImplWin32_Init(g_hwnd);
+    ImGui_ImplDX11_Init(g_device, g_context);
+    gfx::Init(g_device, g_context);
+    fim::fx::InitDX11(g_device, g_context);
+    theme::Apply(dpi);
+    fonts::Init(platform::ExeDir() + "/resources");
+
+    g_appInstance.Init();
+
+    // Command line: [file.fimgui] --ops file.jsonl --select id --tab n --var name=value --preview --export dir --screenshot out.png --frames n
+    std::string screenshot, exportDir, aiPrompt;
+    float zoomArg = 0.0f;
+    bool noEmbedFonts = false;
+    struct Click { std::string id; int frame; float dy; };
+    std::vector<Click> clicks;   // synthetic clicks for automated checks
+    int captureFrame = 45;
+    {
+        int argc = 0;
+        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        std::vector<std::string> args;
+        for (int i = 1; i < argc; i++) args.push_back(platform::Narrow(argv[i]));
+        LocalFree(argv);
+        for (size_t i = 0; i < args.size(); i++)
+        {
+            const std::string& a = args[i];
+            auto next = [&]() { return i + 1 < args.size() ? args[++i] : std::string(); };
+            if (a == "--ops")
+            {
+                std::string text;
+                if (platform::ReadText(next(), text))
+                {
+                    size_t p = 0;
+                    while (p < text.size())
+                    {
+                        size_t nl = text.find('\n', p);
+                        std::string line = text.substr(p, nl == std::string::npos ? std::string::npos : nl - p);
+                        json op = json::parse(line, nullptr, false);
+                        std::string err;
+                        if (!op.is_discarded() && op.is_object() && !g_appInstance.ApplyAiOp(op, &err)) OutputDebugStringA(("op failed: " + err + "\n").c_str());
+                        if (nl == std::string::npos) break;
+                        p = nl + 1;
+                    }
+                    g_appInstance.MarkDirty();
+                }
+            }
+            else if (a == "--import")
+            {
+                // Places a media file at the given canvas position: --import file x y
+                std::string f = next();
+                float x = (float)std::atof(next().c_str()), y = (float)std::atof(next().c_str());
+                g_appInstance.ImportImageFile(f, nullptr, ImVec2(x, y));
+            }
+            else if (a == "--select") g_appInstance.SetSelection({ next() });
+            else if (a == "--tab") g_appInstance.rightTab = std::atoi(next().c_str());
+            else if (a == "--var")
+            {
+                std::string kv = next();
+                size_t eq = kv.find('=');
+                if (eq != std::string::npos) g_appInstance.vars.num[kv.substr(0, eq)] = (float)std::atof(kv.substr(eq + 1).c_str());
+            }
+            else if (a == "--preview") g_appInstance.preview = true;
+            else if (a == "--zoom") zoomArg = (float)std::atof(next().c_str());
+            else if (a == "--pixel-preview") g_appInstance.pixelPreview = true;
+            else if (a == "--click")
+            {
+                // --click node_id frame [dy]: click the node center (+dy design px) at the given frame
+                Click c;
+                c.id = next();
+                c.frame = std::atoi(next().c_str());
+                auto isNumber = [](const std::string& v) { char* e = nullptr; std::strtod(v.c_str(), &e); return !v.empty() && e && *e == 0; };
+                c.dy = (i + 1 < args.size() && isNumber(args[i + 1])) ? (float)std::atof(next().c_str()) : 0.0f;
+                clicks.push_back(c);
+            }
+            else if (a == "--export") exportDir = next();
+            else if (a == "--no-embed-fonts") noEmbedFonts = true;
+            else if (a == "--screenshot") screenshot = next();
+            else if (a == "--frames") captureFrame = std::atoi(next().c_str());
+            else if (a == "--code") g_appInstance.codeLang = std::atoi(next().c_str());
+            else if (a == "--ai") aiPrompt = next();
+            else if (a == "--ai-base") { g_appInstance.ai.baseUrl = next(); g_appInstance.persistSettings = false; }
+            else if (a == "--ai-key") { g_appInstance.ai.apiKey = next(); g_appInstance.persistSettings = false; }
+            else if (a == "--mcp-port")
+            {
+                g_appInstance.mcpPort = std::atoi(next().c_str());
+                g_appInstance.mcpEnabled = true;
+                g_appInstance.persistSettings = false;
+                g_appInstance.StartMcp();
+            }
+            else if (!a.empty() && a[0] != '-') g_appInstance.OpenDocument(a);
+        }
+        if (!g_appInstance.doc.roots.empty()) g_appInstance.deferred.push_back([] { g_appInstance.ZoomToFit(false); });
+        if (zoomArg > 0)
+            g_appInstance.deferred.push_back([zoomArg] {
+                // Zoom around the selection (or the canvas center) - used for screenshots.
+                if (!g_appInstance.selection.empty()) g_appInstance.ZoomToFit(true);
+                g_appInstance.SetZoom(zoomArg, ImVec2((g_appInstance.canvasMin.x + g_appInstance.canvasMax.x) * 0.5f, (g_appInstance.canvasMin.y + g_appInstance.canvasMax.y) * 0.5f));
+            });
+    }
+
+    bool done = false;
+    int frame = 0;
+    while (!done)
+    {
+        MSG msg;
+        while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+            if (msg.message == WM_QUIT) done = true;
+        }
+        if (done) break;
+        if (g_occluded && g_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED) { g_appInstance.PumpMcp(); Sleep(10); continue; }
+        g_occluded = false;
+        if (g_resizeW && g_resizeH)
+        {
+            CleanupRenderTarget();
+            g_swapChain->ResizeBuffers(0, g_resizeW, g_resizeH, DXGI_FORMAT_UNKNOWN, 0);
+            g_resizeW = g_resizeH = 0;
+            CreateRenderTarget();
+        }
+
+        fonts::ProcessPending();
+        gfx::NewFrame();
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        for (const Click& c : clicks)
+        {
+            Node* n = g_appInstance.doc.Find(c.id);
+            if (!n || frame < c.frame || frame > c.frame + 3) continue;
+            ImVec2 wa, wb;
+            NodeWorldRect(n, &g_appInstance.vars, &wa, &wb);
+            ImVec2 p = g_appInstance.WorldToScreen(ImVec2((wa.x + wb.x) * 0.5f, (wa.y + wb.y) * 0.5f + c.dy));
+            ImGuiIO& cio = ImGui::GetIO();
+            cio.AddMousePosEvent(p.x, p.y);
+            if (frame == c.frame + 1) cio.AddMouseButtonEvent(0, true);
+            if (frame == c.frame + 3) cio.AddMouseButtonEvent(0, false);
+        }
+        ImGui::NewFrame();
+
+        if (!g_droppedFiles.empty())
+        {
+            auto files = std::move(g_droppedFiles);
+            g_droppedFiles.clear();
+            g_appInstance.OnDropFiles(files);
+        }
+        if (frame == 3 && !aiPrompt.empty())
+        {
+            snprintf(g_appInstance.aiInput, sizeof(g_appInstance.aiInput), "%s", aiPrompt.c_str());
+            g_appInstance.rightTab = Tab_AI;
+            g_appInstance.AiSend();
+        }
+        g_appInstance.Frame();
+
+        ImGui::Render();
+        const float clear[4] = { 0.12f, 0.12f, 0.12f, 1.0f };
+        g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
+        g_context->ClearRenderTargetView(g_rtv, clear);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        g_appInstance.RunDeferred();
+        frame++;
+        if (frame == 5 && !exportDir.empty())
+        {
+            ExportOptions opt = g_appInstance.exportOpt;
+            opt.outDir = exportDir;
+            if (noEmbedFonts) opt.embedFonts = false;
+            ExportResult r = ExportProject(g_appInstance.doc, opt, platform::ExeDir() + "/runtime");
+            platform::WriteText(exportDir + "/export_log.txt", r.message + "\n");
+            if (screenshot.empty()) done = true;
+        }
+        if (!screenshot.empty() && frame == captureFrame) { CaptureBackbuffer(screenshot); done = true; }
+        HRESULT hr = g_swapChain->Present(1, 0);
+        g_occluded = hr == DXGI_STATUS_OCCLUDED;
+    }
+
+    g_appInstance.Shutdown();
+    gfx::Shutdown();
+    fim::fx::Shutdown();
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+    CleanupDevice();
+    DestroyWindow(g_hwnd);
+    UnregisterClassW(wc.lpszClassName, hInst);
+    CoUninitialize();
+    return 0;
+}

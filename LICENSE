@@ -1,21 +1,110 @@
-MIT License
+Fimgui Non-Commercial License
+Version 1.0
 
-Copyright (c) 2026 Philip
+Copyright (c) 2026 Philip (https://github.com/dis3j). All rights not expressly granted below are reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Fimgui is a design editor for Dear ImGui interfaces. The design of its user interface is inspired by Figma.
+Fimgui is an independent project. It is not affiliated with, endorsed by or sponsored by Figma, Inc.
+"Figma" is a trademark of Figma, Inc.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Permitted use.
+   Permission is granted, free of charge, to any person obtaining a copy of this software and the associated
+   files (the "Software") to use, run, copy, study and modify the Software, and to share copies of it, modified
+   or not, solely for non-commercial purposes: evaluation and familiarization, personal learning, education,
+   research and hobby projects.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. No commercial use.
+   You may not use the Software, or any part of it, for commercial purposes without prior written permission
+   from the copyright holder. Commercial purposes include, without limitation:
+   a) selling, renting or sublicensing the Software or a work derived from it;
+   b) offering the Software or a work derived from it as a paid product or service;
+   c) using the Software in, or to create, products, games, game modifications, tools or services that are sold
+      or monetized in any way (including subscriptions, in-app purchases, donations required for access and
+      advertising);
+   d) using the Software within a company or organization for its business operations.
+
+3. Generated output.
+   Source code and files that the Software writes when it exports a project, including the copied runtime files
+   (fimgui_runtime, fimgui_fx), are part of the Software for the purposes of this License and may be used only
+   for non-commercial purposes. Your own content (texts, images, fonts you supply and your layouts) remains yours.
+
+4. Conditions.
+   Every copy or substantial portion of the Software must include this License and the copyright notice above.
+   Modified versions must be clearly marked as modified and must not be presented as the original Software.
+
+5. Third-party components.
+   Components in the third_party/ directory and the fonts in resources/fonts/ are distributed under their own
+   licenses (see THIRD_PARTY_NOTICES.md). This License does not limit the rights those licenses grant for those
+   components.
+
+6. No warranty.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+   TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+
+7. Termination.
+   Any use that violates this License automatically ends the permissions granted to you by it.
+
+For commercial licensing, contact the copyright holder: https://github.com/dis3j/FImgui
+
+This License is provided in English and Russian. Both versions have the same meaning; if they differ, the
+English version prevails.
+
+--------------------------------------------------------------------------------------------------------------
+
+Некоммерческая лицензия Fimgui
+Версия 1.0
+
+Copyright (c) 2026 Philip (https://github.com/dis3j). Все права, прямо не предоставленные ниже, защищены.
+
+Fimgui — редактор интерфейсов для Dear ImGui. Дизайн его интерфейса вдохновлён Figma.
+Fimgui — независимый проект, он не связан с Figma, Inc., не одобрен и не спонсируется ею.
+«Figma» — товарный знак Figma, Inc.
+
+1. Разрешённое использование.
+   Любому лицу, получившему копию этой программы и сопутствующих файлов («Программа»), бесплатно разрешается
+   использовать, запускать, копировать, изучать и изменять Программу, а также распространять её копии
+   (изменённые или нет) исключительно в некоммерческих целях: для ознакомления, личного обучения, образования,
+   исследований и хобби-проектов.
+
+2. Коммерческое использование запрещено.
+   Без предварительного письменного разрешения правообладателя запрещено использовать Программу или любую её
+   часть в коммерческих целях, в том числе, но не только:
+   а) продавать, сдавать в аренду или сублицензировать Программу или производные от неё работы;
+   б) предлагать Программу или производные работы как платный продукт или услугу;
+   в) использовать Программу в продуктах, играх, модификациях игр, инструментах или сервисах (или для их
+      создания), которые продаются или монетизируются любым способом (включая подписки, внутриигровые покупки,
+      обязательные пожертвования за доступ и рекламу);
+   г) использовать Программу внутри компании или организации для её коммерческой деятельности.
+
+3. Результаты экспорта.
+   Исходный код и файлы, которые Программа создаёт при экспорте проекта, включая копируемые файлы runtime
+   (fimgui_runtime, fimgui_fx), считаются частью Программы для целей этой Лицензии и могут использоваться только
+   в некоммерческих целях. Ваш собственный контент (тексты, изображения, добавленные вами шрифты и макеты)
+   остаётся вашим.
+
+4. Условия.
+   Каждая копия Программы или её существенной части должна содержать эту Лицензию и указанное выше уведомление об
+   авторском праве. Изменённые версии должны быть явно помечены как изменённые и не должны выдаваться за
+   оригинальную Программу.
+
+5. Сторонние компоненты.
+   Компоненты в каталоге third_party/ и шрифты в resources/fonts/ распространяются по своим лицензиям
+   (см. THIRD_PARTY_NOTICES.md). Эта Лицензия не ограничивает права, которые предоставляют лицензии этих
+   компонентов.
+
+6. Отказ от гарантий.
+   ПРОГРАММА ПРЕДОСТАВЛЯЕТСЯ «КАК ЕСТЬ», БЕЗ КАКИХ-ЛИБО ГАРАНТИЙ, ЯВНЫХ ИЛИ ПОДРАЗУМЕВАЕМЫХ, ВКЛЮЧАЯ ГАРАНТИИ
+   ТОВАРНОЙ ПРИГОДНОСТИ, СООТВЕТСТВИЯ ОПРЕДЕЛЁННОЙ ЦЕЛИ И ОТСУТСТВИЯ НАРУШЕНИЙ ПРАВ. НИ В КАКОМ СЛУЧАЕ АВТОРЫ
+   ИЛИ ПРАВООБЛАДАТЕЛИ НЕ НЕСУТ ОТВЕТСТВЕННОСТИ ПО ЛЮБЫМ ТРЕБОВАНИЯМ, УБЫТКАМ ИЛИ ИНЫМ ОБЯЗАТЕЛЬСТВАМ, ВОЗНИКШИМ
+   ИЗ ПРОГРАММЫ ИЛИ В СВЯЗИ С ЕЁ ИСПОЛЬЗОВАНИЕМ.
+
+7. Прекращение действия.
+   Любое использование с нарушением этой Лицензии автоматически прекращает предоставленные ею права.
+
+По вопросам коммерческой лицензии обращайтесь к правообладателю: https://github.com/dis3j/FImgui
+
+Лицензия составлена на английском и русском языках. Обе версии имеют одинаковый смысл; при расхождении
+приоритет имеет английская версия.

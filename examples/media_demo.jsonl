@@ -1,0 +1,2 @@
+{"op":"create","parent":null,"node":{"id":"media","type":"frame","name":"Media","x":0,"y":0,"w":740,"h":260,"radius":20,"fill":"#14141C"}}
+{"op":"create","parent":"media","node":{"id":"gif_tile","type":"rect","name":"GIF tiled","x":20,"y":20,"w":320,"h":220,"radius":16,"fill":"#202030","texture":{"asset":"a_stripes","opacity":0.9,"blend":"normal","fit":"tile","scale":0.75,"speed":[40,0]}}}
