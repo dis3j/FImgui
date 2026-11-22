@@ -338,8 +338,26 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (a == "--frames") captureFrame = std::atoi(next().c_str());
             else if (a == "--code") g_appInstance.codeLang = std::atoi(next().c_str());
             else if (a == "--ai") aiPrompt = next();
-            else if (a == "--ai-base") { g_appInstance.ai.baseUrl = next(); g_appInstance.persistSettings = false; }
-            else if (a == "--ai-key") { g_appInstance.ai.apiKey = next(); g_appInstance.persistSettings = false; }
+            else if (a == "--ai-provider")
+            {
+                std::string p = next();
+                g_appInstance.ai.provider = (p == "openai" || p == "openai-compatible") ? "openai" : "anthropic";
+                g_appInstance.persistSettings = false;
+            }
+            else if (a == "--ai-base")
+            {
+                std::string v = next();
+                if (g_appInstance.ai.IsOpenAI()) g_appInstance.ai.openaiBaseUrl = v;
+                else g_appInstance.ai.baseUrl = v;
+                g_appInstance.persistSettings = false;
+            }
+            else if (a == "--ai-key")
+            {
+                std::string v = next();
+                if (g_appInstance.ai.IsOpenAI()) g_appInstance.ai.openaiApiKey = v;
+                else g_appInstance.ai.apiKey = v;
+                g_appInstance.persistSettings = false;
+            }
             else if (a == "--mcp-port")
             {
                 g_appInstance.mcpPort = std::atoi(next().c_str());

@@ -64,4 +64,5 @@ build\Release\fimgui_example.exe
 | `gen_glass.py out.jsonl` | Генерирует операции витрины «Aurora» |
 | `make_gif.py out.gif` | Пишет анимированный GIF без сторонних библиотек |
 | `mock_server.py ops.jsonl log.json [port]` | Локальная имитация Claude API (SSE-стрим), чтобы проверить встроенный чат без ключа: `Fimgui.exe --ai-base http://127.0.0.1:8765 --ai-key test --ai "..."` |
+| `mock_server_openai.py ops.jsonl log.json [port]` | Локальная имитация OpenAI-совместимого API (`/v1/chat/completions`, SSE-стрим): `Fimgui.exe --ai-provider openai --ai-base http://127.0.0.1:8766 --ai-key test --ai "..."` |
 | `mcp_test.py port ops.jsonl out.png fimgui-mcp.exe` | Проверка MCP-сервера: HTTP-клиент и stdio-мост (initialize, tools/list, apply_operations, render_image и т.д.). Запустите Fimgui с `--mcp-port port` |
