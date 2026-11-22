@@ -22,6 +22,7 @@ namespace fonts
     const FontFace* Find(const std::string& family, const std::string& style);   // never null if any font exists
     ImFont* Get(const std::string& family, const std::string& style);            // may return the default font while loading
     bool AddFontFile(const std::string& path, std::string* familyOut = nullptr);
+    void AddFontDir(const std::string& dir);   // registers every TTF/OTF in a folder (project fonts)
 
     // Editor UI fonts
     enum UiFont { UI_Regular, UI_Medium, UI_SemiBold, UI_Count };

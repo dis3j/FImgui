@@ -71,9 +71,11 @@ json McpToolList()
         "Undoes or redoes design changes.",
         Schema({ { "action", { { "type", "string" }, { "enum", { "undo", "redo" } } } }, { "steps", { { "type", "integer" }, { "minimum", 1 } } } }, { "action" }), false);
     add("document_file", "Document file",
-        "Creates a new document, opens a .fimgui file or saves the current one. new/open refuse to drop unsaved changes unless discard_changes is true.",
-        Schema({ { "action", { { "type", "string" }, { "enum", { "new", "open", "save" } } } },
-                 { "path", { { "type", "string" } } }, { "discard_changes", { { "type", "boolean" } } } }, { "action" }), false);
+        "Projects live in the workspace folder (default C:/FImgui) as <Name>/<name>.fimgui with fonts/, images/, icons/, videos/ and export/. "
+        "Actions: list_projects; new_project (name); open_project (name or path); save (saves the project, or to path); new (blank unsaved design); open (any .fimgui path). "
+        "new/open/new_project/open_project refuse to drop unsaved changes unless discard_changes is true.",
+        Schema({ { "action", { { "type", "string" }, { "enum", { "list_projects", "new_project", "open_project", "save", "new", "open" } } } },
+                 { "name", { { "type", "string" } } }, { "path", { { "type", "string" } } }, { "discard_changes", { { "type", "boolean" } } } }, { "action" }), false);
     return tools;
 }
 
@@ -293,8 +295,36 @@ json App::McpTool(const std::string& name, const json& args)
         std::string action = args.value("action", std::string());
         std::string path = args.value("path", std::string());
         bool discard = args.value("discard_changes", false);
-        if ((action == "new" || action == "open") && modified && !discard)
+        if (action == "list_projects")
+        {
+            ScanProjects();
+            homeNeedsScan = true;
+            json list = json::array();
+            for (auto& p : projects) list.push_back({ { "name", p.name }, { "file", p.file } });
+            return TextResult(json{ { "workspace", WorkspaceDir() }, { "projects", list } }.dump(1));
+        }
+        if ((action == "new" || action == "open" || action == "new_project" || action == "open_project") && modified && !discard)
             return TextResult("The document has unsaved changes. Save it first or pass discard_changes: true.", true);
+        if (action == "new_project")
+        {
+            std::string name = args.value("name", std::string()), err;
+            modified = false;
+            if (!CreateProject(name, false, &err)) return TextResult(err, true);
+            showHome = false;
+            McpLog("new project: " + name);
+            return TextResult(json{ { "project", projectDir }, { "file", filePath } }.dump());
+        }
+        if (action == "open_project")
+        {
+            std::string name = args.value("name", std::string());
+            std::string p = !path.empty() ? path : WorkspaceDir() + "/" + name + "/" + ProjectFileName(name);
+            std::string text;
+            if (!platform::ReadText(p, text)) return TextResult("Cannot read " + p, true);
+            modified = false;
+            OpenDocument(p);
+            McpLog("open project: " + p);
+            return TextResult(json{ { "project", projectDir }, { "file", filePath } }.dump());
+        }
         if (action == "new")
         {
             modified = false;
@@ -306,6 +336,11 @@ json App::McpTool(const std::string& name, const json& args)
             if (path.empty() || !platform::ReadText(path, text)) return TextResult("Cannot read " + path, true);
             modified = false;
             OpenDocument(path);
+        }
+        else if (action == "save" && path.empty() && !projectDir.empty())
+        {
+            SaveProject();
+            path = filePath;
         }
         else if (action == "save")
         {

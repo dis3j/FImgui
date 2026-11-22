@@ -172,6 +172,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     std::string screenshot, exportDir, aiPrompt;
     float zoomArg = 0.0f;
     bool noEmbedFonts = false;
+    bool forceHome = false;
     struct Click { std::string id; int frame; float dy; };
     std::vector<Click> clicks;   // synthetic clicks for automated checks
     int captureFrame = 45;
@@ -233,6 +234,17 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
                 clicks.push_back(c);
             }
             else if (a == "--export") exportDir = next();
+            else if (a == "--workspace") { g_appInstance.workspace = next(); g_appInstance.persistSettings = false; }
+            else if (a == "--home") forceHome = true;
+            else if (a == "--save") g_appInstance.deferred.push_back([] { g_appInstance.SaveDocument(false); });
+            else if (a == "--project")
+            {
+                // Open <workspace>/<name>, creating the project when it doesn't exist yet.
+                std::string name = next(), err;
+                std::string path = g_appInstance.WorkspaceDir() + "/" + name + "/" + ProjectFileName(name);
+                if (platform::ReadText(path, err)) g_appInstance.OpenDocument(path);
+                else if (!g_appInstance.CreateProject(name, false, &err)) OutputDebugStringA(err.c_str());
+            }
             else if (a == "--no-embed-fonts") noEmbedFonts = true;
             else if (a == "--screenshot") screenshot = next();
             else if (a == "--frames") captureFrame = std::atoi(next().c_str());
@@ -249,6 +261,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             }
             else if (!a.empty() && a[0] != '-') g_appInstance.OpenDocument(a);
         }
+        if (!args.empty()) g_appInstance.showHome = forceHome;
         if (!g_appInstance.doc.roots.empty()) g_appInstance.deferred.push_back([] { g_appInstance.ZoomToFit(false); });
         if (zoomArg > 0)
             g_appInstance.deferred.push_back([zoomArg] {

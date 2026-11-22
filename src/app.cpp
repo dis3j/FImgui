@@ -104,6 +104,8 @@ void App::Init()
     NewDocument();
     modified = false;
     StartMcp();
+    showHome = showHomeOnStart;
+    homeNeedsScan = true;
 }
 
 void App::Shutdown()
@@ -184,6 +186,8 @@ void App::Frame()
     ImGui::End();
 
     DrawToolbar();
+    DrawHome();
+    DrawNewProjectDialog();
     DrawExportDialog();
     DrawSettingsDialog();
     DrawMainMenu();
@@ -222,7 +226,8 @@ void App::Frame()
 
     Checkpoint();
 
-    std::string title = (doc.name.empty() ? "Untitled" : doc.name) + (modified ? " *" : "") + " - Fimgui";
+    std::string shownName = !projectDir.empty() ? fs::u8path(projectDir).filename().u8string() : (doc.name.empty() ? "Untitled" : doc.name);
+    std::string title = shownName + (modified ? " *" : "") + " - Fimgui";
     if (title != m_lastTitle) { platform::SetWindowTitle(title); m_lastTitle = title; }
 }
 
@@ -337,12 +342,20 @@ void App::ResetHistory()
 
 // ---------------------------------------------------------------- files
 
+void App::NewDocumentConfirm(std::function<void()> action)
+{
+    if (!modified) { action(); return; }
+    s_confirmText = "Discard unsaved changes?";
+    s_confirmAction = action;
+}
+
 void App::NewDocument()
 {
     auto act = [this] {
         doc.Clear();
         doc.name = "Untitled";
         filePath.clear();
+        projectDir.clear();
         selection.clear();
         vars = VarStore();
         chat.clear();
@@ -358,19 +371,31 @@ void App::NewDocument()
 void App::LoadFromJsonText(const std::string& text, const std::string& path)
 {
     json j = json::parse(text, nullptr, false);
-    std::string err;
-    Document tmp;
-    if (j.is_discarded() || !tmp.FromJson(j, &err)) { Toast("Cannot open: " + (err.empty() ? std::string("invalid JSON") : err), true); return; }
+    if (j.is_discarded() || !j.is_object() || !j.contains("nodes")) { Toast("Cannot open: not a Fimgui design", true); return; }
+    std::string baseDir = fs::u8path(path).parent_path().u8string();
+    bool isProject = j.contains("project");
+    if (!isProject && j.contains("assets") && j["assets"].is_object())
+        for (auto& a : j["assets"]) if (a.contains("file")) isProject = true;
     for (auto& [id, a] : doc.assets) gfx::InvalidateAsset(id);
-    doc.FromJson(j);
+    std::string err;
+    doc.FromJson(j, &err, baseDir);
+    if (!err.empty()) Toast(err, true);
     filePath = path;
+    projectDir = isProject ? baseDir : std::string();
+    if (isProject)
+    {
+        fonts::AddFontDir((fs::u8path(baseDir) / "fonts").u8string());
+        ApplyProjectExportSettings(j["project"].is_object() ? j["project"].value("export", json()) : json());
+    }
+    AddRecent(path);
+    showHome = false;
     if (doc.name.empty() || doc.name == "Untitled") doc.name = fs::u8path(path).stem().u8string();
     selection.clear();
     vars = VarStore();
     ResetHistory();
     modified = false;
     deferred.push_back([this] { ZoomToFit(false); });
-    Toast("Opened " + fs::u8path(path).filename().u8string());
+    Toast("Opened " + (isProject ? fs::u8path(baseDir).filename().u8string() : fs::u8path(path).filename().u8string()));
 }
 
 void App::OpenDocument(const std::string& pathIn)
@@ -388,6 +413,14 @@ void App::OpenDocument(const std::string& pathIn)
 
 void App::SaveDocument(bool saveAs)
 {
+    if (!saveAs && !projectDir.empty()) { SaveProject(); return; }
+    if (!saveAs && filePath.empty())
+    {
+        // Untitled designs become projects in the workspace.
+        newProjectFromCurrent = true;
+        openNewProject = true;
+        return;
+    }
     std::string path = filePath;
     if (saveAs || path.empty())
     {
@@ -396,6 +429,8 @@ void App::SaveDocument(bool saveAs)
     }
     if (!platform::WriteText(path, doc.ToJson(true).dump(1))) { Toast("Save failed", true); return; }
     filePath = path;
+    projectDir.clear();   // a single-file copy embeds its assets
+    AddRecent(path);
     if (doc.name == "Untitled") doc.name = fs::u8path(path).stem().u8string();
     modified = false;
     Toast("Saved");
@@ -435,6 +470,9 @@ void App::SaveSettings()
     j["sendSnapshot"] = ai.sendSnapshot;
     j["mcpEnabled"] = mcpEnabled;
     j["pixelGrid"] = pixelGrid;
+    j["workspace"] = workspace;
+    j["showHomeOnStart"] = showHomeOnStart;
+    j["recentFiles"] = recentFiles;
     j["snapToPixel"] = snapToPixel;
     j["mcpPort"] = mcpPort;
     j["exportDir"] = exportOpt.outDir;
@@ -461,6 +499,10 @@ void App::LoadSettings()
     ai.sendSnapshot = j.value("sendSnapshot", ai.sendSnapshot);
     mcpEnabled = j.value("mcpEnabled", mcpEnabled);
     pixelGrid = j.value("pixelGrid", pixelGrid);
+    workspace = j.value("workspace", workspace);
+    showHomeOnStart = j.value("showHomeOnStart", showHomeOnStart);
+    if (j.contains("recentFiles") && j["recentFiles"].is_array())
+        for (auto& r : j["recentFiles"]) if (r.is_string()) recentFiles.push_back(r.get<std::string>());
     snapToPixel = j.value("snapToPixel", snapToPixel);
     mcpPort = std::clamp(j.value("mcpPort", mcpPort), 1024, 65535);
     exportOpt.outDir = j.value("exportDir", exportOpt.outDir);

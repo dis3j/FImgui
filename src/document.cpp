@@ -2,6 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 
 // Implemented in fonts.cpp - measures a text node with its font.
 ImVec2 MeasureNodeText(const Node* n, float wrapWidth);
@@ -673,7 +676,7 @@ std::unique_ptr<Node> NodeFromJson(const json& j, Document* doc)
     return n;
 }
 
-json Document::ToJson(bool includeAssets) const
+json Document::ToJson(bool includeAssets, bool projectFiles) const
 {
     json j;
     j["format"] = "fimgui";
@@ -688,14 +691,15 @@ json Document::ToJson(bool includeAssets) const
     for (auto& [id, as] : assets)
     {
         json e = { { "name", as.name }, { "kind", AssetKindName(as.kind) }, { "width", as.width }, { "height", as.height } };
-        if (includeAssets) e["data"] = as.kind == 1 ? std::string(as.data.begin(), as.data.end()) : Base64Encode(as.data.data(), as.data.size());
+        if (projectFiles && !as.file.empty()) e["file"] = as.file;
+        else if (includeAssets) e["data"] = as.kind == 1 ? std::string(as.data.begin(), as.data.end()) : Base64Encode(as.data.data(), as.data.size());
         a[id] = e;
     }
     j["assets"] = a;
     return j;
 }
 
-bool Document::FromJson(const json& j, std::string* err)
+bool Document::FromJson(const json& j, std::string* err, const std::string& baseDir)
 {
     if (!j.is_object() || !j.contains("nodes")) { if (err) *err = "Not a Fimgui document"; return false; }
     Clear();
@@ -711,9 +715,20 @@ bool Document::FromJson(const json& j, std::string* err)
             as.kind = AssetKindFromName(it.value().value("kind", std::string("raster")));
             as.width = it.value().value("width", 0);
             as.height = it.value().value("height", 0);
-            std::string data = it.value().value("data", std::string());
-            if (as.kind == 1) as.data.assign(data.begin(), data.end());
-            else as.data = Base64Decode(data);
+            as.file = it.value().value("file", std::string());
+            if (!as.file.empty() && !baseDir.empty())
+            {
+                // Project asset stored as a file next to the design.
+                std::ifstream f(std::filesystem::u8path(baseDir) / std::filesystem::u8path(as.file), std::ios::binary);
+                if (f) as.data.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+                else if (err) *err = "Missing asset file " + as.file;
+            }
+            else
+            {
+                std::string data = it.value().value("data", std::string());
+                if (as.kind == 1) as.data.assign(data.begin(), data.end());
+                else as.data = Base64Decode(data);
+            }
             assets[as.id] = std::move(as);
         }
     for (auto& nj : j["nodes"]) roots.push_back(NodeFromJson(nj, this));

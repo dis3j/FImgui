@@ -240,6 +240,12 @@ namespace fonts
         return true;
     }
 
+    void AddFontDir(const std::string& dir)
+    {
+        ScanDir(fs::u8path(dir));
+        RebuildFamilies();
+    }
+
     ImFont* UI(UiFont f) { return g_ui[f]; }
 }
 

@@ -167,6 +167,7 @@ struct Asset
     int kind = 0;                           // 0 raster (PNG/JPG bytes), 1 SVG text, 2 GIF, 3 video (MP4/MOV/WMV)
     std::vector<unsigned char> data;
     int width = 0, height = 0;              // intrinsic size
+    std::string file;                       // project mode: path relative to the project folder (images/x.png ...)
 };
 
 struct Document
@@ -188,8 +189,10 @@ struct Document
     void Clear();
     bool IsAncestor(Node* maybeAncestor, Node* n);
 
-    json ToJson(bool includeAssets = true) const;
-    bool FromJson(const json& j, std::string* err = nullptr);
+    // projectFiles: assets are referenced by their project file ("file") instead of being embedded.
+    json ToJson(bool includeAssets = true, bool projectFiles = false) const;
+    // baseDir: folder used to resolve assets stored as project files.
+    bool FromJson(const json& j, std::string* err = nullptr, const std::string& baseDir = "");
     std::unique_ptr<Node> CloneNode(const Node* n, bool newIds);
 
     void ApplyLayout();   // recompute auto-layout positions/sizes

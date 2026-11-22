@@ -198,7 +198,9 @@ void App::DrawLeftPanel()
     }
     ImGui::PopFont();
     ImGui::PushStyleColor(ImGuiCol_Text, TextFaint);
-    ImGui::TextUnformatted(filePath.empty() ? "Not saved" : fs::u8path(filePath).filename().u8string().c_str());
+    std::string sub = filePath.empty() ? std::string("Not saved") : !projectDir.empty() ? fs::u8path(projectDir).filename().u8string() + " / " + fs::u8path(filePath).filename().u8string() : fs::u8path(filePath).filename().u8string();
+    ImGui::TextUnformatted(sub.c_str());
+    if (!projectDir.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", projectDir.c_str());
     ImGui::PopStyleColor();
     ImGui::EndGroup();
 
@@ -1282,10 +1284,20 @@ void App::DrawMainMenu()
     {
         if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("New", "Ctrl+N")) NewDocument();
-            if (ImGui::MenuItem("Open...", "Ctrl+O")) OpenDocument();
-            if (ImGui::MenuItem("Save", "Ctrl+S")) SaveDocument(false);
-            if (ImGui::MenuItem("Save as...", "Ctrl+Shift+S")) SaveDocument(true);
+            if (ImGui::MenuItem("Projects...", "Ctrl+Shift+O")) OpenHome();
+            if (ImGui::MenuItem("New project...", "Ctrl+N")) { newProjectFromCurrent = false; openNewProject = true; }
+            if (ImGui::MenuItem("Open file...", "Ctrl+O")) OpenDocument();
+            if (ImGui::BeginMenu("Open recent", !recentFiles.empty()))
+            {
+                for (auto& r : recentFiles)
+                    if (ImGui::MenuItem(r.c_str())) { OpenDocument(r); break; }
+                ImGui::EndMenu();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem(projectDir.empty() ? "Save to project..." : "Save", "Ctrl+S")) SaveDocument(false);
+            if (ImGui::MenuItem("Save as single file...", "Ctrl+Shift+S")) SaveDocument(true);
+            if (!projectDir.empty() && ImGui::MenuItem("Show project folder")) platform::OpenInExplorer(projectDir);
+            if (ImGui::MenuItem("New blank design")) NewDocument();
             ImGui::Separator();
             if (ImGui::MenuItem("Place image / SVG...", "Ctrl+Shift+K"))
                 for (auto& f : platform::OpenFilesDialog("Place image", "Media|*.png;*.jpg;*.jpeg;*.svg;*.bmp;*.gif;*.mp4;*.mov;*.wmv;*.m4v")) ImportImageFile(f, nullptr, ImVec2(0, 0));
@@ -1361,6 +1373,7 @@ void App::HandleShortcuts()
 {
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantTextInput || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)) return;
+    if (showHome) return;
     bool ctrl = io.KeyCtrl, shift = io.KeyShift, alt = io.KeyAlt;
     auto P = [](ImGuiKey k) { return ImGui::IsKeyPressed(k, false); };
     auto PR = [](ImGuiKey k) { return ImGui::IsKeyPressed(k, true); };
@@ -1380,8 +1393,8 @@ void App::HandleShortcuts()
         else if (P(ImGuiKey_D)) DuplicateSelection();
         else if (P(ImGuiKey_G)) { if (shift) Ungroup(); else GroupSelection(alt); }
         else if (P(ImGuiKey_S)) SaveDocument(shift);
-        else if (P(ImGuiKey_O)) OpenDocument();
-        else if (P(ImGuiKey_N)) NewDocument();
+        else if (P(ImGuiKey_O)) { if (shift) OpenHome(); else OpenDocument(); }
+        else if (P(ImGuiKey_N)) { newProjectFromCurrent = false; openNewProject = true; }
         else if (P(ImGuiKey_E)) showExport = true;
         else if (P(ImGuiKey_I)) rightTab = rightTab == Tab_AI ? Tab_Design : Tab_AI;
         else if (P(ImGuiKey_Enter)) preview = !preview;

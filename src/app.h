@@ -29,6 +29,17 @@ struct ChatMessage
 
 struct Guide { bool vertical; float pos; float from, to; };
 
+struct ProjectEntry
+{
+    std::string name, dir, file;
+    long long modified = 0;      // unix time
+    ImTextureID thumb = 0;
+    int thumbW = 0, thumbH = 0;
+};
+
+std::string ProjectFileName(const std::string& name);           // "Project_A" -> "projecta.fimgui"
+bool ValidProjectName(const std::string& name, std::string* err);
+
 class App
 {
 public:
@@ -44,7 +55,27 @@ public:
     VarStore vars;
     std::vector<std::string> selection;
     std::string filePath;
+    std::string projectDir;      // set when the design lives in a project folder
     bool modified = false;
+
+    // ---- projects (workspace/<Name>/<name>.fimgui + fonts/ images/ icons/ videos/ export/)
+    std::string workspace = "C:/FImgui";
+    bool showHomeOnStart = true;
+    bool showHome = false;
+    std::vector<std::string> recentFiles;
+    std::vector<ProjectEntry> projects;
+    std::string WorkspaceDir() const;
+    bool CreateProject(const std::string& name, bool fromCurrent, std::string* err);
+    void SaveProject();
+    void ScanProjects();
+    void AddRecent(const std::string& path);
+    void ApplyProjectExportSettings(const json& j);
+    void OpenHome() { showHome = true; homeNeedsScan = true; }
+    bool homeNeedsScan = true;
+    bool openNewProject = false;
+    bool newProjectFromCurrent = false;
+    void DrawHome();
+    void DrawNewProjectDialog();
 
     Node* Sel(size_t i = 0) { return i < selection.size() ? doc.Find(selection[i]) : nullptr; }
     std::vector<Node*> SelNodes();
@@ -63,6 +94,7 @@ public:
 
     // ---- commands
     void NewDocument();
+    void NewDocumentConfirm(std::function<void()> action);   // asks before dropping unsaved changes
     void OpenDocument(const std::string& path = "");
     void SaveDocument(bool saveAs);
     void DeleteSelection();

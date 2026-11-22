@@ -20,6 +20,28 @@ build\Release\Fimgui.exe examples\demo_menu.fimgui
 
 Все зависимости лежат в `third_party/`: Dear ImGui (ветка docking, 1.93), nanosvg, stb_image, nlohmann/json. Шрифт Inter (лицензия OFL) лежит в `resources/fonts`. После сборки рядом с exe копируются `runtime/` (его экспортёр кладёт в каждый проект) и `resources/`.
 
+## Проекты
+
+Все проекты лежат в рабочей папке — по умолчанию `C:\FImgui`, путь меняется на экране Projects. Каждый проект — отдельная папка:
+
+```
+C:\FImgui\
+  Project_A\
+    projecta.fimgui     дизайн: слои, стили, анимации; ассеты хранятся ссылками на файлы
+    fonts\              используемые шрифты копируются сюда при сохранении — проект переносим
+    images\             PNG, JPG, GIF
+    icons\              SVG
+    videos\             MP4, MOV, WMV
+    export\             сюда по умолчанию экспортируется C++ (настройки экспорта хранятся в проекте)
+    thumbnail.png       превью для экрана проектов
+```
+
+- **Projects** (Ctrl+Shift+O, открывается при запуске): сетка проектов с превью, поиск, «+ New project», недавние файлы.
+- **Ctrl+N** создаёт новый проект. **Ctrl+S** у несохранённого дизайна предлагает сохранить его как проект, у проекта — сохраняет папку целиком.
+- Папку проекта можно скопировать на другой компьютер: шрифты проекта регистрируются при открытии, ассеты читаются из файлов.
+- «Save as single file» сохраняет автономный `.fimgui` со встроенными ассетами, как раньше.
+- MCP-инструмент `document_file` умеет `list_projects`, `new_project` и `open_project`.
+
 ## Возможности
 
 **Редактор**
@@ -181,6 +203,7 @@ if (state.Save_config_pressed) SaveConfig();
 | Ctrl+D, Ctrl+[ / ] | Дублировать, сдвинуть ниже / выше в стеке |
 | Ctrl+Shift+C | Копировать как PNG |
 | Ctrl+Enter, Ctrl+I, Ctrl+E | Preview, AI, Export |
+| Ctrl+Shift+O, Ctrl+N, Ctrl+S | Projects, новый проект, сохранить |
 | Shift+' / Ctrl+Shift+' / Ctrl+Alt+Y | Пиксельная сетка / привязка к пикселям / Pixel preview |
 
 ## Командная строка
@@ -189,7 +212,8 @@ if (state.Save_config_pressed) SaveConfig();
 
 ```
 Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--preview] [--click id frame [dy]]
-           [--tab 0..4] [--import media x y] [--export dir] [--screenshot out.png --frames N]
+           [--tab 0..4] [--import media x y] [--export dir] [--no-embed-fonts] [--screenshot out.png --frames N]
+           [--workspace dir] [--project Name] [--save] [--home]
            [--ai "запрос" --ai-base URL --ai-key KEY] [--mcp-port N]
 ```
 
@@ -215,7 +239,7 @@ Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--p
 ## Структура
 
 ```
-src/        редактор: app, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
+src/        редактор: app, project, ui_home, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
 tools/      fimgui-mcp: stdio-мост для MCP-клиентов; make_logo.py — генератор логотипа (SVG, PNG, ICO)
 runtime/    fimgui_runtime (рендер, анимации, GIF) и fimgui_fx (blur, glass, blend, видео) — общие для редактора и экспорта
 third_party/, resources/fonts, examples/

@@ -14,6 +14,8 @@ add_executable(Fimgui WIN32
     src/ui_panels.cpp
     src/ui_ai.cpp
     src/ui_motion.cpp
+    src/ui_home.cpp
+    src/project.cpp
     src/mcp_server.cpp
     src/mcp_tools.cpp
     src/widgets.cpp
