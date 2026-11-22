@@ -63,6 +63,7 @@ struct RenderCtx
     const Node* playRoot = nullptr;            // or only inside this subtree (editor "Play")
     double time = 0.0;
     int frame = 0;
+    double timeline = -1.0;                    // >= 0: keyframe animations show this timeline time (seconds)
 };
 
 void RenderNode(RenderCtx& ctx, Node* n, ImVec2 parentWorld, float parentAlpha = 1.0f, const AnimFx* inherited = nullptr, float extraDelay = 0.0f);

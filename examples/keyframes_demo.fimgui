@@ -1,0 +1,156 @@
+{
+ "assets": {},
+ "canvasColor": "#1E1E1E",
+ "format": "fimgui",
+ "name": "Untitled",
+ "nextId": 1,
+ "nodes": [
+  {
+   "children": [
+    {
+     "animation": {
+      "delay": 0.0,
+      "distance": 16.0,
+      "duration": 2.0,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "keyframes": {
+       "scale": [
+        {
+         "ease": "ease-out",
+         "t": 0.0,
+         "v": 1.0
+        },
+        {
+         "ease": "bounce-out",
+         "t": 1.0,
+         "v": 1.399999976158142
+        },
+        {
+         "ease": "ease-out",
+         "t": 2.0,
+         "v": 1.0
+        }
+       ],
+       "x": [
+        {
+         "ease": "ease-in-out",
+         "t": 0.0,
+         "v": 0.0
+        },
+        {
+         "ease": "ease-in-out",
+         "t": 1.0,
+         "v": 440.0
+        },
+        {
+         "ease": "ease-out",
+         "t": 2.0,
+         "v": 0.0
+        }
+       ],
+       "y": [
+        {
+         "ease": "ease-out",
+         "t": 0.0,
+         "v": 0.0
+        },
+        {
+         "ease": "ease-in",
+         "t": 0.5,
+         "v": -110.0
+        },
+        {
+         "ease": "ease-out",
+         "t": 1.0,
+         "v": 0.0
+        },
+        {
+         "ease": "ease-in",
+         "t": 1.5,
+         "v": -110.0
+        },
+        {
+         "ease": "ease-out",
+         "t": 2.0,
+         "v": 0.0
+        }
+       ]
+      },
+      "preset": "keyframes",
+      "scale": 0.8999999761581421,
+      "trigger": "loop"
+     },
+     "fill": "#4D7CFF",
+     "h": 60.0,
+     "id": "ball",
+     "name": "Ball",
+     "type": "ellipse",
+     "w": 60.0,
+     "x": 60.0,
+     "y": 150.0
+    },
+    {
+     "animation": {
+      "delay": 0.0,
+      "distance": 16.0,
+      "duration": 0.800000011920929,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "keyframes": {
+       "opacity": [
+        {
+         "ease": "ease-out",
+         "t": 0.0,
+         "v": 0.0
+        },
+        {
+         "ease": "ease-out",
+         "t": 0.800000011920929,
+         "v": 1.0
+        }
+       ],
+       "x": [
+        {
+         "ease": "back-out",
+         "t": 0.0,
+         "v": -30.0
+        },
+        {
+         "ease": "ease-out",
+         "t": 0.800000011920929,
+         "v": 0.0
+        }
+       ]
+      },
+      "preset": "keyframes",
+      "scale": 0.8999999761581421,
+      "trigger": "appear"
+     },
+     "fill": "#FFFFFF",
+     "font": "Inter",
+     "fontSize": 22.0,
+     "h": 27.0,
+     "id": "title",
+     "name": "Title",
+     "text": "Keyframes",
+     "textSizing": "auto-width",
+     "type": "text",
+     "w": 93.0,
+     "x": 24.0,
+     "y": 20.0
+    }
+   ],
+   "fill": "#14141C",
+   "h": 360.0,
+   "id": "stage",
+   "name": "Stage",
+   "radius": 16.0,
+   "type": "frame",
+   "w": 640.0,
+   "x": 0.0,
+   "y": 0.0
+  }
+ ],
+ "version": 1
+}

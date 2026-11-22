@@ -44,6 +44,10 @@ loops: pulse ("intensity" 0.05), float ("distance" 6), breathe ("intensity" 0.35
 hover & press ("trigger":"hover|press|active"): lift ("distance" 3, "intensity" 0.02), grow, press ("intensity" 0.05), nudge, dim.
 easing: linear, ease-in, ease-out, ease-in-out, back-out, elastic-out, bounce-out, spring, or "cubic-bezier(a,b,c,d)".
 "stagger": 0.05 on a container with an entrance preset animates its children one after another (great for lists of rows and tab pages).
+keyframes (a custom timeline, like After Effects): {"preset":"keyframes","trigger":"appear|loop|hover|press|active","duration":1.2,
+ "keyframes":{"x":[{"t":0,"v":-40,"ease":"ease-out"},{"t":0.5,"v":0}],"y":[...],"scale":[{"t":0,"v":0.8,"ease":"back-out"},{"t":0.4,"v":1}],"opacity":[{"t":0,"v":0},{"t":0.3,"v":1}]}}
+ x / y are offsets in px from the layout position, scale a factor, opacity 0..1; "ease" shapes the segment that starts at that key; duration is the timeline length.
+blend (rect, frame, ellipse): "normal" | "plus-lighter" | "multiply" | "screen" - blend mode of the fill.
 Use motion with taste: short entrances (0.3-0.5 s) on pages/cards, lift or grow on buttons and tabs, press on buttons.
 
 # Interactivity (becomes real ImGui behaviour in the exported C++)

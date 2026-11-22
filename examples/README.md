@@ -10,12 +10,17 @@
 | `glass_demo.fimgui` | «Aurora» — витрина эффектов: liquid glass, frosted-сайдбар (background blur), зерно (texture overlay), анимации появления, hover и петли |
 | `media_demo.fimgui` | Анимированный GIF как тайловая текстура с прокруткой |
 | `combo_demo.fimgui` | Combo (выбор кости) и Multi-combo (цели ESP, «Everything» / «Nothing») |
+| `keyframes_demo.fimgui` | Ключевые кадры: мяч прыгает по дуге в цикле (X, Y, Scale), заголовок выезжает и проявляется. Откройте таймлайн: Alt+T |
 
 Рядом лежат `*.jsonl` — те же дизайны в виде потока операций, в том формате, в котором отвечает ИИ (встроенный чат и MCP `apply_operations`):
 
 ```
 Fimgui.exe --ops examples\glass_demo.jsonl
 ```
+
+## Экспорт в Minecraft
+
+`export/minecraft_nexus` — «Nexus», экспортированный для **Fabric 1.21.1** (Export → Minecraft Java): `src/main/java/com/example/examplemod/client/gui/` (`NexusMenu`, `NexusScreen`, runtime `fimgui/`) и `src/main/resources/assets/examplemod/` (запечённые слои и шрифты Inter). Скопируйте `src/` в свой мод и откройте `new NexusScreen()`.
 
 ## Экспортированные C++-проекты
 

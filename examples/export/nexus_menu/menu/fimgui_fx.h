@@ -1,5 +1,5 @@
 // fimgui_fx.h - GPU effects for Fimgui menus: background blur, liquid glass, texture blend modes and video.
-// Part of Fimgui - non-commercial use only, see LICENSE-FIMGUI.txt (https://github.com/dis3j/FImgui).
+// Part of Fimgui (c) 2026 Philip, https://github.com/dis3j/FImgui. Free to use in your projects, including commercial ones; see LICENSE-FIMGUI.txt.
 // fimgui_fx_dx11.cpp implements them for DirectX 11. On other renderers compile fimgui_fx_null.cpp instead:
 // effects then fall back to plain translucent fills and videos are not played.
 #pragma once
@@ -39,6 +39,9 @@ namespace fim
         // Image with a blend mode; wrap = repeat UVs outside 0..1 (tiling).
         void DrawTexture(ImDrawList* dl, ImTextureRef tex, ImVec2 a, ImVec2 b, const float radius[4], ImVec2 uv0, ImVec2 uv1,
                          ImU32 tint, int blend, bool wrap, float alpha = 1.0f);
+        // Layer blend mode for the shapes drawn in between (fills). Blend_Normal does nothing.
+        void BeginBlend(ImDrawList* dl, int blend);
+        void EndBlend(ImDrawList* dl, int blend);
 
         // Video playback (MP4/MOV/WMV via Media Foundation). Loops forever. Handles are >= 0, -1 on failure.
         int  VideoOpenMemory(const void* data, size_t size);

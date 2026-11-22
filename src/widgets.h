@@ -2,15 +2,24 @@
 #include "imgui.h"
 #include "icons.h"
 #include <string>
+#include <functional>
+#include <vector>
 
 // Figma-style inspector widgets.
 namespace ui
 {
     // Numeric field with a scrubbable label prefix ("X", "W", icon...). Returns true while the value changes.
     bool NumField(const char* id, const char* label, float* v, float width, float speed = 1.0f, float vmin = -1e9f, float vmax = 1e9f, const char* suffix = nullptr, Icon icon = (Icon)-1);
+    // Optional top part of a color picker popup (fill type tabs). It may redirect the edited color through *target.
+    // Returns bit 1 when something changed, bit 2 to hide the color picker body.
+    using PickerHeader = std::function<int(ImVec4** target)>;
     // Color swatch + hex + opacity. Returns true on change.
-    bool ColorRow(const char* id, ImVec4* c, float width);
-    bool ColorSwatch(const char* id, ImVec4* c, float size);
+    bool ColorRow(const char* id, ImVec4* c, float width, const PickerHeader* header = nullptr);
+    bool ColorSwatch(const char* id, ImVec4* c, float size, const PickerHeader* header = nullptr);
+    // Figma-style picker: saturation/brightness square, eyedropper, hue and alpha bars, Hex/RGB/HSL/HSB, page colors.
+    bool ColorPickerBody(ImVec4* c, float width);
+    // Colors used in the document, shown under "On this page" (set once per frame by the app).
+    void SetPageColors(const std::vector<ImVec4>& colors);
     // Section header with optional +/- button. Returns 1 when + clicked, -1 when - clicked.
     // extra: optional icon button left of +/- (returns 2 when clicked).
     int  Section(const char* title, int button = 0, Icon extra = (Icon)-1, const char* extraTip = nullptr);

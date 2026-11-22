@@ -6,6 +6,7 @@
 #include <map>
 #include <functional>
 #include "../third_party/json/json.hpp"
+#include "../runtime/fimgui_runtime.h"
 
 using json = nlohmann::json;
 
@@ -61,6 +62,12 @@ struct TextureFx
     ImVec2 speed = ImVec2(0, 0);            // tile scroll, px/s
 };
 
+struct KeyTrackFx
+{
+    int prop = 0;                           // fim::AnimProp
+    std::vector<fim::Keyframe> keys;        // sorted by time
+};
+
 struct AnimFx
 {
     int   preset = 0;                       // fim::AnimPreset
@@ -73,6 +80,11 @@ struct AnimFx
     float intensity = 0.05f;
     float stagger = 0.0f;                   // >0: animate children one after another instead of the node
     float bezier[4] = { 0.25f, 0.1f, 0.25f, 1.0f };
+    std::vector<KeyTrackFx> tracks;         // preset Keyframes (duration = timeline length)
+    mutable std::vector<fim::KeyTrack> trackViews;   // filled by ToAnimSpec
+
+    KeyTrackFx* Track(int prop, bool create = false);
+    const KeyTrackFx* Track(int prop) const;
 };
 
 const char* AnimPresetKey(int preset);     // "slide-up"
@@ -80,6 +92,8 @@ const char* AnimPresetLabel(int preset);   // "Slide up"
 const char* EasingKey(int easing);
 const char* EasingLabel(int easing);
 const char* TriggerKey(int trigger);
+const char* AnimPropKey(int prop);         // "x", "y", "scale", "opacity"
+const char* AnimPropLabel(int prop);       // "Position X"...
 AnimFx AnimDefaults(int preset);
 
 // Interactive role, mapped to ImGui behaviour in preview and in generated code.
@@ -105,6 +119,7 @@ struct Node
     float strokeWidth = 1.0f;
     int   strokeAlign = 0;                  // 0 inside, 1 center, 2 outside
     int   fillHidden = 0, strokeHidden = 0;  // eye toggle: paint type to restore (paint.type is 0 while hidden)
+    int   blend = 0;                         // fill blend mode: 0 normal, 1 plus lighter, 2 multiply, 3 screen
     Effect effect;
     BlurFx blur;
     GlassFx glass;

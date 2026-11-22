@@ -756,7 +756,7 @@ void App::DrawCanvas()
     }
     m_spaceHeld = ImGui::IsKeyDown(ImGuiKey_Space) && !io.WantTextInput;
 
-    if (!preview) CanvasInput();
+    if (!preview && !MotionPathInput()) CanvasInput();
     else
     {
         // Preview still allows panning with middle mouse / space.
@@ -789,6 +789,7 @@ void App::DrawCanvas()
     ctx.time = ImGui::GetTime();
     ctx.frame = ImGui::GetFrameCount();
     ctx.playRoot = (!preview && ctx.time < animPlayUntil) ? doc.Find(animPlayId) : nullptr;
+    ctx.timeline = timelineOpen && !preview ? timelineTime : -1.0;
     // Pixel preview: show the page rendered at 1x (last frame), magnified without smoothing.
     bool usePixelPreview = pixelPreview && !preview && editingText.empty() && pixelPreviewTex && zoom > 1.0f;
     if (usePixelPreview)
@@ -815,6 +816,8 @@ void App::DrawCanvas()
                 if (t) { pixelPreviewTex = t; pixelPreviewMin = wa; pixelPreviewMax = wb; }
             });
     }
+
+    DrawMotionPath(dl);
 
     // Pixel grid (above the content, like design tools) from 400%
     if (pixelGrid && zoom >= kPixelGridZoom)

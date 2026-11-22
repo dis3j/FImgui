@@ -8,7 +8,7 @@ enum class Icon
     AlignLeft, AlignCenterH, AlignRight, AlignTop, AlignCenterV, AlignBottom,
     ArrowDown, ArrowRight, Wrap, Link, Unlink, Code, Export, Menu, Search, Settings, Close,
     Send, Stop, Attach, Copy, Grid, Radius, Undo, Redo, TextLeft, TextCenter, TextRight,
-    Component, Check,
+    Component, Check, Timeline,
 };
 
 void DrawIcon(ImDrawList* dl, Icon icon, ImVec2 center, float size, ImU32 col);

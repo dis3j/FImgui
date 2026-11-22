@@ -9,7 +9,7 @@
 #define STBI_ONLY_GIF
 #include "stb_image.h"
 
-namespace menu
+namespace project_a
 {
 static const unsigned char tex_0_data[650] = {
     137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,32,
@@ -214,4 +214,4 @@ ImFont* detail_LoadFont(int index, const char* fonts_dir)
     snprintf(path, sizeof(path), "%s/%s", fonts_dir ? fonts_dir : "fonts", f.file);
     return ImGui::GetIO().Fonts->AddFontFromFileTTF(path, 16.0f, &cfg);
 }
-} // namespace menu
+} // namespace project_a

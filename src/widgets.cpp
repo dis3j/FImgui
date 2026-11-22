@@ -1,4 +1,5 @@
 #include "widgets.h"
+#include "platform.h"
 #include "theme.h"
 #include "fonts.h"
 #include "document.h"
@@ -117,7 +118,211 @@ namespace ui
                     dl->AddRectFilled(ImVec2(x, y), ImVec2(std::min(x + s, b.x), std::min(y + s, b.y)), IM_COL32(204, 204, 204, 255));
     }
 
-    bool ColorSwatch(const char* id, ImVec4* c, float size)
+    static std::vector<ImVec4> s_pageColors;
+    void SetPageColors(const std::vector<ImVec4>& colors) { s_pageColors = colors; }
+
+    static void EyedropperGlyph(ImDrawList* dl, ImVec2 c, float s, ImU32 col)
+    {
+        // pipette: tilted barrel + bulb
+        ImVec2 tip(c.x - s * 0.42f, c.y + s * 0.42f), mid(c.x + s * 0.12f, c.y - s * 0.12f);
+        dl->AddLine(tip, mid, col, 1.4f);
+        dl->AddLine(ImVec2(mid.x - s * 0.16f, mid.y - s * 0.16f), ImVec2(mid.x + s * 0.16f, mid.y + s * 0.16f), col, 1.4f);
+        dl->AddCircleFilled(ImVec2(c.x + s * 0.28f, c.y - s * 0.28f), s * 0.17f, col);
+    }
+
+    bool ColorPickerBody(ImVec4* c, float w)
+    {
+        bool changed = false;
+        ImGuiIO& io = ImGui::GetIO();
+        ImGuiStorage* st = ImGui::GetStateStorage();
+        ImGuiID sid = ImGui::GetID("##cpbody");
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float h, s, v;
+        ImGui::ColorConvertRGBtoHSV(c->x, c->y, c->z, h, s, v);
+        // Keep hue (and saturation) when they are undefined for greys / black.
+        float* keepH = st->GetFloatRef(sid ^ 0x51u, h);
+        float* keepS = st->GetFloatRef(sid ^ 0x52u, s);
+        if (s > 0.002f && v > 0.002f) *keepH = h; else h = *keepH;
+        if (v > 0.002f) *keepS = s; else s = *keepS;
+        auto apply = [&](float hh, float ss, float vv) {
+            float r, g, b;
+            ImGui::ColorConvertHSVtoRGB(hh, ss, vv, r, g, b);
+            c->x = r; c->y = g; c->z = b;
+            *keepH = hh; *keepS = ss;
+            changed = true;
+        };
+
+        // Saturation / brightness square
+        float sqH = w * 0.82f;
+        ImVec2 p = ImGui::GetCursorScreenPos();
+        float hr, hg, hb;
+        ImGui::ColorConvertHSVtoRGB(h, 1, 1, hr, hg, hb);
+        ImU32 hueCol = ImGui::ColorConvertFloat4ToU32(ImVec4(hr, hg, hb, 1));
+        dl->AddRectFilledMultiColor(p, ImVec2(p.x + w, p.y + sqH), IM_COL32_WHITE, hueCol, hueCol, IM_COL32_WHITE);
+        dl->AddRectFilledMultiColor(p, ImVec2(p.x + w, p.y + sqH), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32_BLACK, IM_COL32_BLACK);
+        ImGui::InvisibleButton("##sv", ImVec2(w, sqH));
+        if (ImGui::IsItemActive())
+            apply(h, ImSaturate((io.MousePos.x - p.x) / w), 1 - ImSaturate((io.MousePos.y - p.y) / sqH));
+        ImVec2 knob(p.x + s * w, p.y + (1 - v) * sqH);
+        dl->AddCircleFilled(knob, U(7), IM_COL32_WHITE);
+        dl->AddCircleFilled(knob, U(5), ImGui::ColorConvertFloat4ToU32(ImVec4(c->x, c->y, c->z, 1)));
+        dl->AddCircle(knob, U(7.5f), IM_COL32(0, 0, 0, 80));
+        ImGui::Dummy(ImVec2(0, U(4)));
+
+        // Eyedropper + hue / alpha bars
+        float fh = ImGui::GetFrameHeight();
+        ImVec2 rp = ImGui::GetCursorScreenPos();
+        ImGui::InvisibleButton("##eyedrop", ImVec2(fh, fh * 1.6f));
+        bool eyeHov = ImGui::IsItemHovered();
+        if (ImGui::IsItemClicked()) ImGui::OpenPopup("##eyedropper");
+        if (eyeHov) dl->AddRectFilled(rp, ImVec2(rp.x + fh, rp.y + fh * 1.6f), Hover, U(5));
+        EyedropperGlyph(dl, ImVec2(rp.x + fh * 0.5f, rp.y + fh * 0.8f), U(14), Text);
+        if (eyeHov) ImGui::SetTooltip("Pick a color from the screen");
+        float bx = rp.x + fh + U(10), bw = w - fh - U(10), bh = U(12);
+        float hy = rp.y + U(2), ay = rp.y + fh * 1.6f - bh - U(2);
+        // hue bar
+        const ImU32 hues[7] = { IM_COL32(255, 0, 0, 255), IM_COL32(255, 255, 0, 255), IM_COL32(0, 255, 0, 255), IM_COL32(0, 255, 255, 255),
+                                IM_COL32(0, 0, 255, 255), IM_COL32(255, 0, 255, 255), IM_COL32(255, 0, 0, 255) };
+        for (int i = 0; i < 6; i++)
+        {
+            float x0 = bx + bw * i / 6, x1 = bx + bw * (i + 1) / 6;
+            dl->AddRectFilledMultiColor(ImVec2(x0, hy), ImVec2(x1, hy + bh), hues[i], hues[i + 1], hues[i + 1], hues[i]);
+        }
+        ImGui::SetCursorScreenPos(ImVec2(bx - U(6), hy - U(3)));
+        ImGui::InvisibleButton("##hue", ImVec2(bw + U(12), bh + U(6)));
+        if (ImGui::IsItemActive()) apply(ImSaturate((io.MousePos.x - bx) / bw) * 0.9999f, s, v);
+        ImVec2 hk(bx + h * bw, hy + bh * 0.5f);
+        dl->AddCircleFilled(hk, bh * 0.62f, IM_COL32_WHITE);
+        dl->AddCircleFilled(hk, bh * 0.42f, hueCol);
+        // alpha bar
+        Checker(dl, ImVec2(bx, ay), ImVec2(bx + bw, ay + bh));
+        ImU32 c0 = ImGui::ColorConvertFloat4ToU32(ImVec4(c->x, c->y, c->z, 0)), c1 = ImGui::ColorConvertFloat4ToU32(ImVec4(c->x, c->y, c->z, 1));
+        dl->AddRectFilledMultiColor(ImVec2(bx, ay), ImVec2(bx + bw, ay + bh), c0, c1, c1, c0);
+        ImGui::SetCursorScreenPos(ImVec2(bx - U(6), ay - U(3)));
+        ImGui::InvisibleButton("##alpha", ImVec2(bw + U(12), bh + U(6)));
+        if (ImGui::IsItemActive()) { c->w = ImSaturate((io.MousePos.x - bx) / bw); changed = true; }
+        ImVec2 ak(bx + c->w * bw, ay + bh * 0.5f);
+        dl->AddCircleFilled(ak, bh * 0.62f, IM_COL32_WHITE);
+        dl->AddCircleFilled(ak, bh * 0.42f, c1);
+        ImGui::SetCursorScreenPos(ImVec2(rp.x, rp.y + fh * 1.6f + U(8)));
+
+        // Format + value + opacity
+        int* fmt = st->GetIntRef(ImGui::GetID("##cpfmt"), 0);
+        const char* fmts[] = { "Hex", "RGB", "HSL", "HSB" };
+        ImGui::SetNextItemWidth(U(66));
+        if (ImGui::BeginCombo("##fmt", fmts[*fmt]))
+        {
+            for (int i = 0; i < 4; i++) if (ImGui::Selectable(fmts[i], *fmt == i)) *fmt = i;
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine(0, U(4));
+        float opW = U(58);
+        float valW = w - U(66) - U(4) - opW - U(4);
+        if (*fmt == 0)
+        {
+            char buf[16];
+            std::string hex = ColorToHex(ImVec4(c->x, c->y, c->z, 1.0f));
+            snprintf(buf, sizeof(buf), "%s", hex.c_str() + 1);
+            ImGui::SetNextItemWidth(valW);
+            if (ImGui::InputText("##hexv", buf, sizeof(buf), ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_CharsUppercase))
+            {
+                ImVec4 nc;
+                if (HexToColor(buf, &nc)) { c->x = nc.x; c->y = nc.y; c->z = nc.z; changed = true; }
+            }
+        }
+        else
+        {
+            float a3[3];
+            const char* lbl[3];
+            if (*fmt == 1) { a3[0] = c->x * 255; a3[1] = c->y * 255; a3[2] = c->z * 255; lbl[0] = "R"; lbl[1] = "G"; lbl[2] = "B"; }
+            else if (*fmt == 2)
+            {
+                // HSL from HSV
+                float l = v * (1 - s / 2), sl = (l <= 0 || l >= 1) ? 0 : (v - l) / std::min(l, 1 - l);
+                a3[0] = h * 360; a3[1] = sl * 100; a3[2] = l * 100; lbl[0] = "H"; lbl[1] = "S"; lbl[2] = "L";
+            }
+            else { a3[0] = h * 360; a3[1] = s * 100; a3[2] = v * 100; lbl[0] = "H"; lbl[1] = "S"; lbl[2] = "B"; }
+            for (int i = 0; i < 3; i++) a3[i] = std::round(a3[i]);
+            float fw = (valW - U(4) * 2) / 3;
+            bool ch3 = false;
+            for (int i = 0; i < 3; i++)
+            {
+                if (i) ImGui::SameLine(0, U(4));
+                ImGui::PushID(i);
+                float mx = *fmt == 1 ? 255.0f : (i == 0 ? 360.0f : 100.0f);
+                ch3 |= NumField("##c3", "", &a3[i], fw, 1.0f, 0, mx);
+                ImGui::PopID();
+            }
+            if (ch3)
+            {
+                if (*fmt == 1) { c->x = a3[0] / 255; c->y = a3[1] / 255; c->z = a3[2] / 255; changed = true; }
+                else if (*fmt == 2)
+                {
+                    float hh = a3[0] / 360, sl = a3[1] / 100, l = a3[2] / 100;
+                    float vv = l + sl * std::min(l, 1 - l), ss = vv <= 0 ? 0 : 2 * (1 - l / vv);
+                    apply(std::min(hh, 0.9999f), ss, vv);
+                }
+                else apply(std::min(a3[0] / 360, 0.9999f), a3[1] / 100, a3[2] / 100);
+            }
+        }
+        ImGui::SameLine(0, U(4));
+        float pct = std::round(c->w * 100.0f);
+        if (NumField("##cpop", "", &pct, opW, 1.0f, 0, 100, "%")) { c->w = pct / 100.0f; changed = true; }
+
+        // On this page
+        if (!s_pageColors.empty())
+        {
+            ImGui::Dummy(ImVec2(0, U(4)));
+            ImVec2 lp = ImGui::GetCursorScreenPos();
+            dl->AddLine(ImVec2(lp.x - U(12), lp.y), ImVec2(lp.x + w + U(12), lp.y), Divider);
+            ImGui::Dummy(ImVec2(0, U(6)));
+            ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+            ImGui::TextUnformatted("On this page");
+            ImGui::PopStyleColor();
+            float sw = U(20), gap = U(6);
+            int perRow = std::max(1, (int)((w + gap) / (sw + gap)));
+            for (size_t i = 0; i < s_pageColors.size() && i < 32; i++)
+            {
+                if (i % perRow) ImGui::SameLine(0, gap);
+                ImGui::PushID((int)i);
+                ImVec2 q = ImGui::GetCursorScreenPos();
+                if (ImGui::InvisibleButton("##pc", ImVec2(sw, sw))) { *c = s_pageColors[i]; changed = true; }
+                const ImVec4& pc = s_pageColors[i];
+                if (pc.w < 1.0f) Checker(dl, q, ImVec2(q.x + sw, q.y + sw));
+                dl->AddRectFilled(q, ImVec2(q.x + sw, q.y + sw), ImGui::ColorConvertFloat4ToU32(pc), U(3));
+                dl->AddRect(q, ImVec2(q.x + sw, q.y + sw), ImGui::IsItemHovered() ? IM_COL32_WHITE : IM_COL32(255, 255, 255, 40), U(3));
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip("#%s", ColorToHex(pc).c_str() + 1);
+                ImGui::PopID();
+            }
+        }
+
+        // Eyedropper: a transparent full-screen popup above everything; click picks the pixel under the pointer.
+        ImGuiViewport* vp = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(vp->Pos);
+        ImGui::SetNextWindowSize(vp->Size);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+        if (ImGui::BeginPopup("##eyedropper", ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        {
+            float rgb[3] = { c->x, c->y, c->z };
+            bool ok = platform::ScreenPixel(io.MousePos.x, io.MousePos.y, rgb);
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+            ImVec2 m = io.MousePos;
+            ImVec2 bc(m.x + U(34), m.y - U(34));
+            fg->AddCircleFilled(bc, U(22), ImGui::ColorConvertFloat4ToU32(ImVec4(rgb[0], rgb[1], rgb[2], 1)));
+            fg->AddCircle(bc, U(22), IM_COL32_WHITE, 0, 2.0f);
+            fg->AddCircle(bc, U(23.5f), IM_COL32(0, 0, 0, 120), 0, 1.0f);
+            fg->AddLine(ImVec2(m.x - U(8), m.y), ImVec2(m.x + U(8), m.y), IM_COL32_WHITE);
+            fg->AddLine(ImVec2(m.x, m.y - U(8)), ImVec2(m.x, m.y + U(8)), IM_COL32_WHITE);
+            ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+            if (ImGui::IsMouseClicked(0) && ok) { c->x = rgb[0]; c->y = rgb[1]; c->z = rgb[2]; changed = true; ImGui::CloseCurrentPopup(); }
+            if (ImGui::IsMouseClicked(1) || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
+        ImGui::PopStyleVar();
+        return changed;
+    }
+
+    bool ColorSwatch(const char* id, ImVec4* c, float size, const PickerHeader* header)
     {
         ImGui::PushID(id);
         ImVec2 p = ImGui::GetCursorScreenPos();
@@ -128,18 +333,23 @@ namespace ui
         if (c->w < 1.0f) Checker(dl, a, b);
         dl->AddRectFilled(a, b, ImGui::ColorConvertFloat4ToU32(*c), U(2));
         dl->AddRect(a, b, IM_COL32(255, 255, 255, 40), U(2));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(12), U(12)));
+        // Open to the left of the inspector, like design tools do.
+        ImGui::SetNextWindowPos(ImVec2(p.x - U(28), std::min(p.y - U(40), ImGui::GetMainViewport()->WorkPos.y + ImGui::GetMainViewport()->WorkSize.y - U(470))), ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
         if (ImGui::BeginPopup("##picker"))
         {
-            ImGui::SetNextItemWidth(U(220));
-            changed = ImGui::ColorPicker4("##pick", (float*)c, ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_DisplayHex |
-                                                                 ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaPreviewHalf | ImGuiColorEditFlags_PickerHueBar);
+            ImVec4* target = c;
+            int hr = header && *header ? (*header)(&target) : 0;
+            changed |= (hr & 1) != 0;
+            if (!(hr & 2)) changed |= ColorPickerBody(target, U(240));
             ImGui::EndPopup();
         }
+        ImGui::PopStyleVar();
         ImGui::PopID();
         return changed;
     }
 
-    bool ColorRow(const char* id, ImVec4* c, float width)
+    bool ColorRow(const char* id, ImVec4* c, float width, const PickerHeader* header)
     {
         ImGui::PushID(id);
         bool changed = false;
@@ -149,7 +359,7 @@ namespace ui
         float mainW = width - opW - U(4);
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRectFilled(p, ImVec2(p.x + mainW, p.y + h), Field, ImGui::GetStyle().FrameRounding);
-        changed |= ColorSwatch("##s", c, h);
+        changed |= ColorSwatch("##s", c, h, header);
         ImGui::SameLine(0, 0);
         char buf[16];
         std::string hex = ColorToHex(ImVec4(c->x, c->y, c->z, 1.0f));

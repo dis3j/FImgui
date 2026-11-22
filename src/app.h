@@ -1,5 +1,8 @@
 #pragma once
 #include "updater.h"
+#include "codegen_java.h"
+#include <set>
+#include <map>
 #include "document.h"
 #include "renderer.h"
 #include "codegen.h"
@@ -169,7 +172,12 @@ public:
 
     // deferred GPU jobs
     std::vector<std::function<void()>> deferred;
-    bool RenderNodePNG(Node* n, float scale, std::vector<unsigned char>& png, int* w = nullptr, int* h = nullptr);
+    bool RenderNodePNG(Node* n, float scale, std::vector<unsigned char>& png, int* w = nullptr, int* h = nullptr, ImVec2* worldMin = nullptr);
+    // One layer alone (children hidden), for the Minecraft export. See BakeLayerFn.
+    bool BakeLayerPNG(Node* n, int variant, float scale, std::vector<unsigned char>& png, int* w, int* h, ImVec2* offset);
+    JavaOptions javaOpt;
+    int exportTarget = 0;              // 0 Dear ImGui (C++), 1 Minecraft Java
+    ExportResult RunJavaExport();
     bool RenderRegionPNG(ImVec2 worldMin, ImVec2 worldMax, float scale, std::vector<unsigned char>& png);
 
     // ---- UI (ui_*.cpp)
@@ -187,6 +195,36 @@ public:
     void DrawSettingsDialog();
     void DrawContextMenu();
     void DrawMainMenu();
+    // Fill picker (ui_picker.cpp)
+    int pickerTab = 0, pickerStop = 0;
+    ImVec4 shaderC0 = ImVec4(0.3f, 0.5f, 1, 1), shaderC1 = ImVec4(0.9f, 0.3f, 0.8f, 1);
+    void CollectPageColors();
+    // Tabs on top of a fill's color picker. Returns bit 1 on change, bit 2 to hide the color body.
+    int FillPickerHeader(Node* n, Paint* p, ImVec4** target, bool mediaFirst);
+    // Keyframe timeline (ui_timeline.cpp)
+    struct KeySel { std::string node; int prop; float time; };
+    bool timelineOpen = false, timelinePlaying = false, timelineLoop = true;
+    double timelineTime = 0;
+    float timelineH = 0, timelineZoom = 1.0f, timelineScroll = 0;
+    std::vector<KeySel> keySel;
+    std::vector<float> keyDragOrig;
+    float keyDragStartX = 0;
+    bool keyDragging = false;
+    std::map<std::string, bool> timelineExpanded;
+    std::set<std::string> timelineExpandedInit;
+    struct PathDrag { bool active = false; std::string node; float time = 0; ImVec2 baseCenter, grab; } pathDrag;
+    void DrawTimeline();
+    void TickTimeline();
+    float TimelineLength();
+    std::vector<Node*> TimelineNodes();
+    float SampleProp(const Node* n, int prop, float t) const;
+    void EnableKeyframes(Node* n);
+    void SetKey(Node* n, int prop, float t, float v);
+    bool HasKey(const Node* n, int prop, float t) const;
+    void RemoveKey(Node* n, int prop, float t);
+    void DeleteSelectedKeys();
+    bool MotionPathInput();
+    void DrawMotionPath(ImDrawList* dl);
     // Window chrome (ui_chrome.cpp): custom title bar, menus, updates.
     void DrawTitleBar();
     void StartupChecks();   // update check + what's new (skipped for command-line runs)

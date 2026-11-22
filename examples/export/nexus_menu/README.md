@@ -2,7 +2,7 @@
 
 ## Layout
 
-- `menu/menu.h/.cpp` - generated ImGui code (`menu::State`, `menu::Init`, `menu::Render`)
+- `menu/menu.h/.cpp` - generated ImGui code (`project_a::State`, `project_a::Init`, `project_a::Render`)
 - `menu/menu_assets.cpp` - embedded textures and GIFs
 - `menu/fimgui_runtime.h/.cpp` - drawing, animation and GIF helpers used by the generated code
 - `menu/fimgui_fx.h` + `fimgui_fx_dx11.cpp` - background blur, glass, blend modes, video (DirectX 11). Use `fimgui_fx_null.cpp` instead on other renderers.
@@ -16,12 +16,12 @@
 #include "menu.h"
 #include "fimgui_fx.h"
 
-menu::State state;
+project_a::State state;
 fim::fx::InitDX11(device, context);          // once, after ImGui_ImplDX11_Init()
-menu::Init(MyCreateTexture, "fonts", ".");   // fonts dir, folder that contains videos/
+project_a::Init(MyCreateTexture, "fonts", ".");   // fonts dir, folder that contains videos/
 
 // every frame, between ImGui::NewFrame() and ImGui::Render():
-menu::Render(state);
+project_a::Render(state);
 ```
 
 Add `menu/*.cpp` (one of the two fimgui_fx_*.cpp) to your build. Dear ImGui 1.92 or newer is required (dynamic font sizes).
@@ -29,7 +29,7 @@ The DirectX 11 effects link with d3dcompiler, mfplat, mfreadwrite, mfuuid and sh
 
 ## License
 
-The generated code and the Fimgui runtime are for non-commercial use only (see `LICENSE-FIMGUI.txt`). Your own content (texts, images, layouts) remains yours.
+The generated code and the Fimgui runtime may be used, modified and sold as part of your own projects (see `LICENSE-FIMGUI.txt`); keep the copyright line at the top of the runtime files. Fimgui itself may not be sold. Your own content (texts, images, layouts) remains yours.
 
 ## State
 

@@ -12,7 +12,7 @@ BAR_RADIUS = 5.0
 # Brush "i": paint drop (dot), handle, ferrule (72% white), tapered bristles
 DOT = (182, 72, 13)
 HANDLE = (175, 98, 189, 140, 7)
-FERRULE = (169, 142, 195, 156, 3)
+FERRULE = (169, 143, 195, 156, 3)
 FERRULE_ALPHA = 0.72
 
 def bezier(p0, p1, p2, p3, n=24):
@@ -23,7 +23,7 @@ def bezier(p0, p1, p2, p3, n=24):
         out.append(tuple(u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k] for k in range(2)))
     return out
 
-TIP = [(169, 158)] + bezier((195, 158), (196, 176), (190, 188), (182, 198)) + bezier((182, 198), (174, 188), (168, 176), (169, 158))[1:]
+TIP = [(169, 159)] + bezier((195, 159), (196, 176), (190, 188), (182, 198)) + bezier((182, 198), (174, 188), (168, 176), (169, 159))[1:]
 
 def inside_poly(px, py, poly):
     c = False
@@ -75,9 +75,23 @@ def png(rows, size):
 
 def svg():
     rect = lambda x0, y0, x1, y1, r, extra="": f'<rect x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0}" rx="{r:g}" fill="#FFFFFF"{extra}/>'
-    bars = "".join(rect(*b, BAR_RADIUS) for b in BARS)
+    # "F" as one path (same outline as DrawLogo), so the mark is a single shape
+    F = [(58, 60, 1), (146, 60, 1), (146, 88, 1), (88, 88, 0), (88, 114, 0), (130, 114, 1), (130, 140, 1), (88, 140, 0), (88, 196, 1), (58, 196, 1)]
+    d = ""
+    for i, (x, y, r) in enumerate(F):
+        if not r:
+            d += f"{'M' if not d else 'L'}{x} {y}"
+            continue
+        px, py, _ = F[i - 1]
+        nx, ny, _ = F[(i + 1) % len(F)]
+        def toward(ax, ay, bx, by, rr=6.0):
+            l = math.hypot(bx - ax, by - ay)
+            return ax + (bx - ax) / l * rr, ay + (by - ay) / l * rr
+        a0, a1 = toward(x, y, px, py), toward(x, y, nx, ny)
+        d += f"{'M' if not d else 'L'}{a0[0]:g} {a0[1]:g}Q{x} {y} {a1[0]:g} {a1[1]:g}"
+    bars = f'<path d="{d}Z" fill="#FFFFFF"/>'
     bars += f'<circle cx="{DOT[0]}" cy="{DOT[1]}" r="{DOT[2]}" fill="#FFFFFF"/>' + rect(*HANDLE) + rect(*FERRULE, f' fill-opacity="{FERRULE_ALPHA}"')
-    bars += '<path d="M169 158L195 158C196 176 190 188 182 198C174 188 168 176 169 158Z" fill="#FFFFFF"/>'
+    bars += '<path d="M169 159L195 159C196 176 190 188 182 198C174 188 168 176 169 159Z" fill="#FFFFFF"/>'
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">'
             f'<defs><linearGradient id="g" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">'
             f'<stop offset="0" stop-color="#{C0[0]:02X}{C0[1]:02X}{C0[2]:02X}"/><stop offset="1" stop-color="#{C1[0]:02X}{C1[1]:02X}{C1[2]:02X}"/></linearGradient></defs>'

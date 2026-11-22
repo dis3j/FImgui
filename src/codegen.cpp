@@ -233,11 +233,32 @@ struct Gen
         return "fim::Paint{fim::Paint_Linear, " + Col(p.c0) + ", " + Col(p.c1) + ", " + F(p.angle) + "}";
     }
 
-    std::string SpecLit(const AnimFx& a, float extraDelay)
+    // tracksSym: name of a static fim::KeyTrack array emitted by KeyTracks() (keyframe animations).
+    std::string SpecLit(const AnimFx& a, float extraDelay, const std::string& tracksSym = "")
     {
-        return "fim::AnimSpec{ " + std::to_string(a.preset) + ", " + std::to_string(a.trigger) + ", " + std::to_string(a.easing) + ", " + F(a.duration) + ", " +
-               F(a.delay + extraDelay) + ", " + F(a.distance) + ", " + F(a.scale) + ", " + F(a.intensity) + ", { " + F(a.bezier[0]) + ", " + F(a.bezier[1]) + ", " +
-               F(a.bezier[2]) + ", " + F(a.bezier[3]) + " } }";
+        std::string s = "fim::AnimSpec{ " + std::to_string(a.preset) + ", " + std::to_string(a.trigger) + ", " + std::to_string(a.easing) + ", " + F(a.duration) + ", " +
+                        F(a.delay + extraDelay) + ", " + F(a.distance) + ", " + F(a.scale) + ", " + F(a.intensity) + ", { " + F(a.bezier[0]) + ", " + F(a.bezier[1]) + ", " +
+                        F(a.bezier[2]) + ", " + F(a.bezier[3]) + " }";
+        if (!tracksSym.empty()) s += ", " + tracksSym + ", " + std::to_string(a.tracks.size());
+        return s + " }";
+    }
+
+    // Emits static keyframe arrays for a keyframe animation; returns the tracks symbol ("" when none).
+    std::string KeyTracks(const AnimFx& a, const std::string& sym)
+    {
+        if (a.preset != fim::Anim_Keyframes || a.tracks.empty()) return "";
+        std::string list;
+        for (size_t i = 0; i < a.tracks.size(); i++)
+        {
+            const KeyTrackFx& t = a.tracks[i];
+            std::string keys;
+            for (auto& k : t.keys) keys += (keys.empty() ? "" : ", ") + std::string("{ ") + F(k.time) + ", " + F(k.value) + ", " + std::to_string(k.easing) + " }";
+            std::string ks = sym + "_k" + std::to_string(i);
+            L("static const fim::Keyframe " + ks + "[] = { " + keys + " };   // " + AnimPropKey(t.prop));
+            list += (list.empty() ? "" : ", ") + std::string("{ ") + std::to_string(t.prop) + ", " + ks + ", " + std::to_string(t.keys.size()) + " }";
+        }
+        L("static const fim::KeyTrack " + sym + "_kt[] = { " + list + " };");
+        return sym + "_kt";
     }
 
     std::string CondExpr(const Node* n)
@@ -364,7 +385,8 @@ struct Gen
         {
             std::string hovE = n->role != Role::None ? hov : "(ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(" + ba + ", " + bb + "))";
             std::string heldE = !held.empty() ? held : "(" + hovE + " && ImGui::IsMouseDown(0))";
-            L("const fim::AnimValue " + sym + "_an = fim::AnimUpdate(" + CStr(n->id + "#m") + ", " + SpecLit(*spec, delay) + ", " + hovE + ", " + heldE + ", " + act + ");");
+            std::string kt = KeyTracks(*spec, sym);
+            L("const fim::AnimValue " + sym + "_an = fim::AnimUpdate(" + CStr(n->id + "#m") + ", " + SpecLit(*spec, delay, kt) + ", " + hovE + ", " + heldE + ", " + act + ");");
             L("const float " + sym + "_S = " + sv + " * " + sym + "_an.scale;");
             L("const ImVec2 " + sym + "_c((" + ba + ".x + " + bb + ".x) * 0.5f + " + sym + "_an.dx * " + sv + ", (" + ba + ".y + " + bb + ".y) * 0.5f + " + sym + "_an.dy * " + sv + ");");
             L("const ImVec2 " + sym + "_h0((" + bb + ".x - " + ba + ".x) * 0.5f * " + sym + "_an.scale, (" + bb + ".y - " + ba + ".y) * 0.5f * " + sym + "_an.scale);");
@@ -495,7 +517,9 @@ struct Gen
         case NodeType::Rect:
             if (n->effect.type == 1) L("fim::DrawShadow(dl, " + a + ", " + b + ", " + r + ", " + shadow + ", " + nsv + ", " + als + ");");
             emitBackdrop();
+            if (n->blend) { usesFx = true; L("fim::fx::BeginBlend(dl, " + std::to_string(n->blend) + ");"); }
             if (n->fill.type || paint.find("Paint_Solid") != std::string::npos) L("fim::FillRect(dl, " + a + ", " + b + ", " + r + ", " + paint + ", " + als + ");");
+            if (n->blend) L("fim::fx::EndBlend(dl, " + std::to_string(n->blend) + ");");
             emitTexture();
             if (n->effect.type == 2) L("fim::DrawShadow(dl, " + a + ", " + b + ", " + r + ", " + shadow + ", " + nsv + ", " + als + ");");
             break;
@@ -504,7 +528,9 @@ struct Gen
         case NodeType::Ellipse:
             if (n->effect.type == 1) L("fim::DrawShadow(dl, " + a + ", " + b + ", nullptr, " + shadow + ", " + nsv + ", " + als + ", true);");
             emitBackdrop();
+            if (n->blend) { usesFx = true; L("fim::fx::BeginBlend(dl, " + std::to_string(n->blend) + ");"); }
             L("fim::FillEllipse(dl, " + a + ", " + b + ", " + paint + ", " + als + ");");
+            if (n->blend) L("fim::fx::EndBlend(dl, " + std::to_string(n->blend) + ");");
             emitTexture();
             if (n->effect.type == 2) L("fim::DrawShadow(dl, " + a + ", " + b + ", nullptr, " + shadow + ", " + nsv + ", " + als + ", true);");
             break;
@@ -999,7 +1025,7 @@ ExportResult ExportProject(Document& doc, const ExportOptions& opt, const std::s
     // Header
     std::ostringstream h;
     h << "// Generated by Fimgui from \"" << doc.name << "\". Do not edit by hand - re-export instead.\n"
-      << "// Generated code and runtime: non-commercial use only, see LICENSE-FIMGUI.txt.\n"
+      << "// Generated code and runtime may be used in your own projects, including commercial ones (see LICENSE-FIMGUI.txt).\n"
       << "// Requires Dear ImGui 1.92+, fimgui_runtime.h/.cpp and fimgui_fx (fimgui_fx_dx11.cpp, or fimgui_fx_null.cpp on other renderers).\n"
       << "#pragma once\n#include \"imgui.h\"\n\nnamespace fim { struct GifAnim; }\n\nnamespace " << ns << "\n{\n"
       << g.StateStruct("State") << "\n"
@@ -1077,8 +1103,8 @@ ExportResult ExportProject(Document& doc, const ExportOptions& opt, const std::s
            << "// every frame, between ImGui::NewFrame() and ImGui::Render():\n" << ns << "::Render(state);\n```\n\n"
            << "Add `menu/*.cpp` (one of the two fimgui_fx_*.cpp) to your build. Dear ImGui 1.92 or newer is required (dynamic font sizes).\n"
            << "The DirectX 11 effects link with d3dcompiler, mfplat, mfreadwrite, mfuuid and shlwapi.\n\n"
-           << "## License\n\nThe generated code and the Fimgui runtime are for non-commercial use only (see `LICENSE-FIMGUI.txt`). "
-           << "Your own content (texts, images, layouts) remains yours.\n\n## State\n\n";
+           << "## License\n\nThe generated code and the Fimgui runtime may be used, modified and sold as part of your own projects (see `LICENSE-FIMGUI.txt`); "
+           << "keep the copyright line at the top of the runtime files. Fimgui itself may not be sold. Your own content (texts, images, layouts) remains yours.\n\n## State\n\n";
     for (auto& [k, v] : g.vars)
         readme << "- `" << g.varIdent[k] << "` (" << (v.kind == VarKind::Bool ? "bool" : v.kind == VarKind::Int ? "int" : v.kind == VarKind::Float ? "float" : v.kind == VarKind::Mask ? "unsigned int, bit mask" : "char[256]") << ")\n";
     for (auto& p : g.pressed) readme << "- `" << p << "` (bool, true for one frame after a click)\n";

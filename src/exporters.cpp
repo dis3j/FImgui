@@ -1,4 +1,5 @@
 #include "exporters.h"
+#include "renderer.h"
 #include "gfx.h"
 #include "fonts.h"
 #include "../runtime/fimgui_fx.h"
@@ -122,8 +123,11 @@ static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChild
     {
         const AnimFx& a = n->anim;
         int cat = fim::AnimCategory(a.preset);
-        std::string name = std::string("fim-") + AnimPresetKey(a.preset);
-        if (cat == 2)
+        std::string name = a.preset == fim::Anim_Keyframes ? "fim-kf-" + n->id : std::string("fim-") + AnimPresetKey(a.preset);
+        if (a.preset == fim::Anim_Keyframes) cat = fim::AnimCategoryOf(ToAnimSpec(a));
+        if (cat == 2 && a.preset == fim::Anim_Keyframes)
+            o << ind << "/* keyframes play on :" << (a.trigger == 2 ? "active" : a.trigger == 3 ? "checked" : "hover") << " - animation: " << name << " " << Fmt(a.duration) << "s both; */\n";
+        else if (cat == 2)
             o << ind << "transition: transform " << Fmt(a.duration) << "s, opacity " << Fmt(a.duration) << "s; /* on :" << (a.trigger == 2 ? "active" : a.trigger == 3 ? "checked" : "hover") << " */\n";
         else
             o << ind << "animation: " << name << " " << Fmt(cat == 1 ? a.duration + a.delay : a.duration) << "s linear " << (cat == 0 ? Fmt(a.delay) + "s both" : "infinite") << ";\n";
@@ -136,7 +140,18 @@ static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChild
 // Keyframes sampled from the shared animation engine, so CSS matches the editor and the ImGui export.
 static void CssKeyframes(Node* n, std::ostringstream& o, std::set<int>& done)
 {
-    if (n->anim.preset && !done.count(n->anim.preset) && fim::AnimCategory(n->anim.preset) != 2)
+    if (n->anim.preset == fim::Anim_Keyframes)
+    {
+        fim::AnimSpec s = ToAnimSpec(n->anim);
+        o << "\n@keyframes fim-kf-" << n->id << " {\n";
+        for (int k = 0; k <= 20; k++)
+        {
+            fim::AnimValue v = fim::AnimKeyframesAt(s, n->anim.duration * k / 20.0f);
+            o << "  " << k * 5 << "% { transform: translate(" << Px(v.dx) << ", " << Px(v.dy) << ") scale(" << Fmt(v.scale) << "); opacity: " << Fmt(v.alpha) << "; }\n";
+        }
+        o << "}\n";
+    }
+    else if (n->anim.preset && !done.count(n->anim.preset) && fim::AnimCategory(n->anim.preset) != 2)
     {
         done.insert(n->anim.preset);
         AnimFx a = n->anim;
@@ -164,7 +179,7 @@ std::string NodeToCSS(Document& doc, Node* n, bool withChildren)
     CssFor(doc, n, o, withChildren, 0);
     std::set<int> done;
     if (withChildren) CssKeyframes(n, o, done);
-    else if (n->anim.preset) { Node tmp; tmp.anim = n->anim; CssKeyframes(&tmp, o, done); }
+    else if (n->anim.preset) { Node tmp; tmp.id = n->id; tmp.anim = n->anim; CssKeyframes(&tmp, o, done); }
     return o.str();
 }
 
@@ -656,21 +671,72 @@ Node* ImportVideo(Document& doc, const std::vector<unsigned char>& bytes, const 
 
 std::string MakeTextureAsset(Document& doc, int pattern)
 {
+    pattern = std::clamp(pattern, 0, 5);
     const int S = pattern == 0 ? 128 : 64;
-    std::vector<unsigned char> rgba((size_t)S * S * 4);
+    std::vector<unsigned char> rgba(S * S * 4);
     unsigned seed = 1234567u;
     for (int y = 0; y < S; y++)
         for (int x = 0; x < S; x++)
         {
-            unsigned char* p = &rgba[((size_t)y * S + x) * 4];
             unsigned char v = 255, a = 255;
             if (pattern == 0) { seed = seed * 1664525u + 1013904223u; v = (unsigned char)(seed >> 24); }          // noise
             else if (pattern == 1) { v = 0; a = (y % 4) < 2 ? 140 : 0; }                                            // scanlines
             else if (pattern == 2) { a = (x % 16 == 0 || y % 16 == 0) ? 90 : 0; }                                   // grid
-            else { float d = std::fabs(((x + y) % 16) - 8.0f) / 8.0f; a = (unsigned char)(d < 0.25f ? 110 : 0); }   // stripes
+            else if (pattern == 3) { float d = std::fabs(((x + y) % 16) - 8.0f) / 8.0f; a = (unsigned char)(d < 0.25f ? 110 : 0); }   // stripes
+            else if (pattern == 4) { float dx = (x % 16) - 7.5f, dy = (y % 16) - 7.5f; a = dx * dx + dy * dy < 9.0f ? 110 : 0; }   // dots
+            else { a = (((x / 16) + (y / 16)) & 1) ? 60 : 0; }                                                       // checker
+            unsigned char* p = &rgba[(y * S + x) * 4];
             p[0] = p[1] = p[2] = v;
             p[3] = a;
         }
-    static const char* names[] = { "noise", "scanlines", "grid", "stripes" };
-    return AddAsset(doc, 0, names[pattern & 3], gfx::EncodePNG(rgba.data(), S, S));
+    static const char* names[] = { "noise", "scanlines", "grid", "stripes", "dots", "checker" };
+    return AddAsset(doc, 0, names[pattern], gfx::EncodePNG(rgba.data(), S, S));
+}
+
+const char* const kShaderStyleNames[5] = { "Aurora", "Mesh", "Waves", "Radial glow", "Plasma" };
+
+std::string MakeShaderAsset(Document& doc, int style, ImVec4 c0, ImVec4 c1)
+{
+    style = std::clamp(style, 0, 4);
+    const int S = 256;
+    std::vector<unsigned char> rgba(S * S * 4);
+    auto mix = [](float a, float b, float t) { return a + (b - a) * t; };
+    for (int y = 0; y < S; y++)
+        for (int x = 0; x < S; x++)
+        {
+            float u = x / (float)(S - 1), v = y / (float)(S - 1), t = 0, shade = 1;
+            switch (style)
+            {
+            case 0:   // aurora: soft curtains
+                t = 0.5f + 0.5f * std::sin(u * 6.0f + std::sin(v * 4.0f + u * 2.0f) * 1.8f);
+                shade = 0.55f + 0.45f * std::exp(-std::pow((v - 0.45f - 0.15f * std::sin(u * 5.0f)) * 3.0f, 2.0f));
+                break;
+            case 1:   // mesh: four soft corners
+                t = std::clamp(0.5f * (u + v) + 0.25f * std::sin(u * 3.1f) * std::cos(v * 2.7f), 0.0f, 1.0f);
+                break;
+            case 2:   // waves
+                t = 0.5f + 0.5f * std::sin((v + 0.08f * std::sin(u * 12.0f)) * 18.0f);
+                break;
+            case 3:   // radial glow
+            {
+                float d = std::sqrt((u - 0.5f) * (u - 0.5f) + (v - 0.5f) * (v - 0.5f)) * 2.0f;
+                t = std::clamp(d, 0.0f, 1.0f);
+                t = t * t * (3 - 2 * t);
+                break;
+            }
+            default:  // plasma
+                t = 0.5f + 0.25f * (std::sin(u * 10.0f) + std::sin((u + v) * 7.0f + std::sin(v * 9.0f)));
+                t = std::clamp(t, 0.0f, 1.0f);
+                break;
+            }
+            unsigned char* p = &rgba[(y * S + x) * 4];
+            p[0] = (unsigned char)std::clamp(mix(c0.x, c1.x, t) * shade * 255.0f, 0.0f, 255.0f);
+            p[1] = (unsigned char)std::clamp(mix(c0.y, c1.y, t) * shade * 255.0f, 0.0f, 255.0f);
+            p[2] = (unsigned char)std::clamp(mix(c0.z, c1.z, t) * shade * 255.0f, 0.0f, 255.0f);
+            p[3] = (unsigned char)std::clamp(mix(c0.w, c1.w, t) * 255.0f, 0.0f, 255.0f);
+        }
+    std::string name = std::string("shader_") + kShaderStyleNames[style];
+    for (auto& ch : name) if (ch == ' ') ch = '_';
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    return AddAsset(doc, 0, name, gfx::EncodePNG(rgba.data(), S, S));
 }

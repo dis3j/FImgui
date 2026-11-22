@@ -77,6 +77,13 @@ void DrawIcon(ImDrawList* dl, Icon icon, ImVec2 c, float s, ImU32 col)
         break;
     case Icon::Plus: Ln(8, 3, 8, 13); Ln(3, 8, 13, 8); break;
     case Icon::Minus: Ln(3, 8, 13, 8); break;
+    case Icon::Timeline:
+    {
+        Ln(2, 5, 14, 5); Ln(2, 11, 14, 11);
+        auto d = [&](float x, float y) { ImVec2 pts[] = { P(x, y - 2.2f), P(x + 2.2f, y), P(x, y + 2.2f), P(x - 2.2f, y) }; dl->AddConvexPolyFilled(pts, 4, col); };
+        d(5, 5); d(11, 5); d(8, 11);
+        break;
+    }
     case Icon::Check: { ImVec2 pts[] = { P(3.5f, 8.5f), P(6.5f, 11.5f), P(12.5f, 4.5f) }; dl->AddPolyline(pts, 3, col, 0, t * 1.2f); break; }
     case Icon::ChevronRight: { ImVec2 pts[] = { P(6.5f, 4.5f), P(10, 8), P(6.5f, 11.5f) }; dl->AddPolyline(pts, 3, col, 0, t); break; }
     case Icon::ChevronDown: { ImVec2 pts[] = { P(4.5f, 6.5f), P(8, 10), P(11.5f, 6.5f) }; dl->AddPolyline(pts, 3, col, 0, t); break; }
@@ -139,17 +146,34 @@ void DrawLogo(ImDrawList* dl, ImVec2 p, float size, float alpha)
     fim::FillRect(dl, p, ImVec2(p.x + size, p.y + size), r, bg, alpha);
     ImU32 white = fim::Fade(IM_COL32_WHITE, alpha);
     auto P = [&](float x, float y) { return ImVec2(p.x + x * k, p.y + y * k); };
-    // "F"
-    const float bars[3][4] = { { 58, 60, 88, 196 }, { 58, 60, 146, 88 }, { 58, 114, 130, 140 } };
-    for (auto& b : bars) dl->AddRectFilled(P(b[0], b[1]), P(b[2], b[3]), white, 5 * k);
-    // "i" as a paint brush, bristles down: a paint drop for the dot, handle, ferrule, tapered tip.
-    dl->AddCircleFilled(P(182, 72), 13 * k, white, 24);
+    // "F" as one outline (no overlapping parts, so it stays clean when drawn translucent).
+    // Corners: x, y, rounded?
+    const float F[][3] = { { 58, 60, 1 }, { 146, 60, 1 }, { 146, 88, 1 }, { 88, 88, 0 }, { 88, 114, 0 }, { 130, 114, 1 },
+                           { 130, 140, 1 }, { 88, 140, 0 }, { 88, 196, 1 }, { 58, 196, 1 } };
+    const int nF = (int)(sizeof(F) / sizeof(F[0]));
+    for (int i = 0; i < nF; i++)
+    {
+        const float* c = F[i];
+        if (!c[2]) { dl->PathLineTo(P(c[0], c[1])); continue; }
+        const float* pv = F[(i + nF - 1) % nF];
+        const float* nx = F[(i + 1) % nF];
+        float rr = 6.0f;
+        // Round the corner: come in along the previous edge, curve to the next edge.
+        auto dir = [](const float* a, const float* b) { float dx = b[0] - a[0], dy = b[1] - a[1], l = std::sqrt(dx * dx + dy * dy); return ImVec2(dx / l, dy / l); };
+        ImVec2 d0 = dir(c, pv), d1 = dir(c, nx);
+        ImVec2 a0(c[0] + d0.x * rr, c[1] + d0.y * rr), a1(c[0] + d1.x * rr, c[1] + d1.y * rr);
+        dl->PathLineTo(P(a0.x, a0.y));
+        dl->PathBezierQuadraticCurveTo(P(c[0], c[1]), P(a1.x, a1.y), 6);
+    }
+    dl->PathFillConcave(white);
+    // "i" as a paint brush, bristles down: paint drop (dot), handle, ferrule, tapered tip - separate, non-overlapping parts.
+    dl->AddCircleFilled(P(182, 72), 13 * k, white, 32);
     dl->AddRectFilled(P(175, 98), P(189, 140), white, 7 * k);
-    dl->AddRectFilled(P(169, 142), P(195, 156), fim::Fade(IM_COL32_WHITE, alpha * 0.72f), 3 * k);
-    dl->PathLineTo(P(169, 158));
-    dl->PathLineTo(P(195, 158));
+    dl->AddRectFilled(P(169, 143), P(195, 156), fim::Fade(IM_COL32_WHITE, alpha * 0.72f), 3 * k);
+    dl->PathLineTo(P(169, 159));
+    dl->PathLineTo(P(195, 159));
     dl->PathBezierCubicCurveTo(P(196, 176), P(190, 188), P(182, 198));
-    dl->PathBezierCubicCurveTo(P(174, 188), P(168, 176), P(169, 158));
+    dl->PathBezierCubicCurveTo(P(174, 188), P(168, 176), P(169, 159));
     dl->PathFillConvex(white);
 }
 

@@ -304,7 +304,7 @@ void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
 
 static fim::AnimValue PreviewSample(const fim::AnimSpec& s, double t, float* progress)
 {
-    int cat = fim::AnimCategory(s.preset);
+    int cat = fim::AnimCategoryOf(s);
     if (cat == 0)
     {
         double cycle = 0.35 + s.delay + s.duration + 0.9;
@@ -415,7 +415,8 @@ void App::DrawMotionTab()
         int b = ui::Section("Presets", n->anim.preset ? -1 : 0);
         if (b == -1) { for (Node* q : nodes) q->anim.preset = 0; MarkDirty(); }
         struct Cat { const char* name; int first, last; };
-        const Cat cats[] = { { "Entrance", fim::Anim_Fade, fim::Anim_Bounce }, { "Loop", fim::Anim_Pulse, fim::Anim_Wiggle }, { "Hover & press", fim::Anim_Lift, fim::Anim_Dim } };
+        const Cat cats[] = { { "Entrance", fim::Anim_Fade, fim::Anim_Bounce }, { "Loop", fim::Anim_Pulse, fim::Anim_Wiggle }, { "Hover & press", fim::Anim_Lift, fim::Anim_Dim },
+                             { "Timeline (keyframes)", fim::Anim_Keyframes, fim::Anim_Keyframes } };
         float gap = U(6);
         float cw = (W - gap * 2) / 3, ch = U(64);
         for (const Cat& c : cats)
@@ -435,7 +436,8 @@ void App::DrawMotionTab()
                 ImDrawList* dl = ImGui::GetWindowDrawList();
                 dl->AddRectFilled(p, ImVec2(p.x + cw, p.y + ch), hov ? IM_COL32(66, 66, 66, 255) : Field, U(8));
                 if (sel) dl->AddRect(p, ImVec2(p.x + cw, p.y + ch), Accent, U(8), 0, 1.5f);
-                fim::AnimSpec spec = ToAnimSpec(AnimDefaults(pr));
+                AnimFx def = AnimDefaults(pr);
+                fim::AnimSpec spec = ToAnimSpec(def);
                 fim::AnimValue v = PreviewSample(spec, t + pr * 0.13, nullptr);
                 dl->PushClipRect(p, ImVec2(p.x + cw, p.y + ch - U(16)), true);
                 DrawPreviewShape(dl, p, ImVec2(p.x + cw, p.y + ch - U(14)), v, U(18), 0.6f * dpi, sel ? Accent : IM_COL32(200, 200, 210, 255));
@@ -453,7 +455,8 @@ void App::DrawMotionTab()
                         if (fim::AnimCategory(pr) == 0) q->anim.stagger = stagger;
                     }
                     MarkDirty();
-                    PlayAnimation(n);
+                    if (pr == fim::Anim_Keyframes) { timelineOpen = true; timelineTime = 0; }
+                    else PlayAnimation(n);
                 }
                 ImGui::PopID();
                 col = (col + 1) % 3;
@@ -466,7 +469,7 @@ void App::DrawMotionTab()
         {
             AnimFx& a = n->anim;
             bool ch2 = false;
-            int cat = fim::AnimCategory(a.preset);
+            int cat = fim::AnimCategoryOf(ToAnimSpec(a));
 
             ui::Section("Live preview");
             float ph = U(96);
@@ -498,6 +501,29 @@ void App::DrawMotionTab()
             ImGui::SameLine(0, U(8));
             if (ImGui::Button("Preview menu", ImVec2(half, 0))) { preview = true; animClocks.clear(); }
 
+            if (a.preset == fim::Anim_Keyframes)
+            {
+                ui::Section("Keyframes");
+                ui::SubLabel("Plays");
+                const char* trigs[] = { "On appear", "While hovered", "While pressed", "While active (checked / selected)", "Loop" };
+                ch2 |= ui::Combo("##kftrig", &a.trigger, trigs, 5, W);
+                ui::SubLabels("Length", "Delay", half + U(8));
+                float len = a.duration, del = a.delay;
+                if (ui::NumField("kflen", "", &len, half, 0.01f, 0.05f, 600, " s", Icon::Play)) { a.duration = std::max(0.05f, len); ch2 = true; }
+                ImGui::SameLine(0, U(8));
+                if (ui::NumField("kfdel", "", &del, half, 0.01f, 0, 600, " s", Icon::Redo)) { a.delay = std::max(0.0f, del); ch2 = true; }
+                int keys = 0;
+                for (auto& tr : a.tracks) keys += (int)tr.keys.size();
+                char info[96];
+                snprintf(info, sizeof(info), "%d keys on %d properties", keys, (int)a.tracks.size());
+                ui::Label(info);
+                if (ui::PrimaryButton(timelineOpen ? "Timeline is open below" : "Open timeline (Alt+T)", ImVec2(W, 0))) timelineOpen = true;
+                ImGui::PushTextWrapPos(0);
+                ui::Label("Set keys with the diamonds in the timeline, drag them in time, right-click for easing. Drag the dots of the motion path on the canvas to move the layer at a key.");
+                ImGui::PopTextWrapPos();
+            }
+            else
+            {
             ui::Section("Timing");
             if (cat == 0) ui::Label("Plays when the layer appears (menu opens, tab or page shows).");
             else if (cat == 1) ui::Label("Loops while the layer is visible.");
@@ -557,6 +583,7 @@ void App::DrawMotionTab()
                         if (ui::NumField("stg", "", &sg, half, 5.0f, 1, 5000, " ms", Icon::AlignCenterH)) { a.stagger = sg / 1000; ch2 = true; }
                     }
                 }
+            }
             }
             if (ch2)
             {

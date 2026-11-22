@@ -1,5 +1,5 @@
 // fimgui_runtime.h - drawing & interaction helpers shared by the Fimgui editor and generated menus.
-// Part of Fimgui - non-commercial use only, see LICENSE-FIMGUI.txt (https://github.com/dis3j/FImgui).
+// Part of Fimgui (c) 2026 Philip, https://github.com/dis3j/FImgui. Free to use in your projects, including commercial ones; see LICENSE-FIMGUI.txt.
 // Requires Dear ImGui 1.92+ (dynamic font sizes).
 #pragma once
 #include "imgui.h"
@@ -80,10 +80,17 @@ namespace fim
         Anim_Pulse, Anim_Float, Anim_Breathe, Anim_Heartbeat, Anim_Wiggle,
         // Interaction (hover / press / active state)
         Anim_Lift, Anim_Grow, Anim_Press, Anim_Nudge, Anim_Dim,
+        // Timeline: keyframe tracks; the trigger decides when it plays (appear, loop, hover, press, active)
+        Anim_Keyframes,
         Anim_Count
     };
     enum AnimTrigger { Trigger_Appear, Trigger_Hover, Trigger_Press, Trigger_Active, Trigger_Loop };
     enum Easing { Ease_Linear, Ease_In, Ease_Out, Ease_InOut, Ease_BackOut, Ease_ElasticOut, Ease_BounceOut, Ease_Spring, Ease_Bezier, Ease_Count };
+
+    // Keyframe tracks (Anim_Keyframes). X / Y are offsets in px, Scale a factor, Opacity 0..1.
+    enum AnimProp { Prop_X, Prop_Y, Prop_Scale, Prop_Opacity, Prop_Count };
+    struct Keyframe { float time; float value; int easing; };   // easing shapes the segment that starts at this key
+    struct KeyTrack { int prop; const Keyframe* keys; int count; };
 
     struct AnimSpec
     {
@@ -96,11 +103,16 @@ namespace fim
         float scale = 0.9f;         // start scale for pop / zoom
         float intensity = 0.05f;    // amount for pulse / grow / press / dim
         float bezier[4] = { 0.25f, 0.1f, 0.25f, 1.0f };
+        const KeyTrack* tracks = nullptr;   // Anim_Keyframes; duration is the timeline length
+        int   trackCount = 0;
     };
 
     struct AnimValue { float dx = 0, dy = 0, scale = 1, alpha = 1; };
 
     int       AnimCategory(int preset);                                 // 0 entrance, 1 loop, 2 interaction
+    int       AnimCategoryOf(const AnimSpec& s);                        // same, keyframes resolved by their trigger
+    float     KeyTrackSample(const KeyTrack& t, float time, const float bezier[4]);
+    AnimValue AnimKeyframesAt(const AnimSpec& s, float time);           // keyframes at timeline time (no delay)
     float     Ease(int easing, const float bezier[4], float t);
     // time: seconds since the trigger (entrance / loop); progress: 0..1 state progress (interaction).
     AnimValue AnimSample(const AnimSpec& s, float time, float progress);

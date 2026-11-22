@@ -28,6 +28,8 @@ namespace platform
     bool IsWindowMaximized();
     void CloseMainWindow();
     void StartWindowDrag();
+    // Color of the screen pixel under a point in client coordinates (eyedropper). rgb in 0..1.
+    bool ScreenPixel(float clientX, float clientY, float rgb[3]);
 
     // Clipboard
     bool SetClipboardText(const std::string& utf8);

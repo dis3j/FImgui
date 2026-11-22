@@ -81,6 +81,7 @@ void App::MenuView()
     ImGui::MenuItem("Pixel preview", "Ctrl+Alt+Y", &pixelPreview);
     ImGui::Separator();
     ImGui::MenuItem("Show all conditional layers", nullptr, &ignoreConditions);
+    ImGui::MenuItem("Timeline", "Alt+T", &timelineOpen);
     if (ImGui::MenuItem("Preview", "Ctrl+Enter", preview)) preview = !preview;
     ImGui::Separator();
     if (ImGui::BeginMenu("Interface scale"))
@@ -432,7 +433,7 @@ void App::DrawUpdateDialogs()
         ImGui::PopFont();
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
         ImGui::TextUnformatted("Design editor for Dear ImGui menus. Interface design inspired by Figma.");
-        ImGui::TextUnformatted("Not affiliated with Figma, Inc. Non-commercial use only (see LICENSE).");
+        ImGui::TextUnformatted("Not affiliated with Figma, Inc. Free tool - your projects are yours to sell; Fimgui itself may not be sold.");
         ImGui::PopStyleColor();
         ImGui::Dummy(ImVec2(0, U(8)));
         if (ImGui::Button("GitHub", ImVec2(U(110), U(30)))) platform::OpenUrl("https://github.com/" FIMGUI_REPO);

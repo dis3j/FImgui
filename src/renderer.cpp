@@ -231,6 +231,13 @@ fim::AnimSpec ToAnimSpec(const AnimFx& a, float extraDelay)
     s.scale = a.scale;
     s.intensity = a.intensity;
     for (int i = 0; i < 4; i++) s.bezier[i] = a.bezier[i];
+    if (a.preset == fim::Anim_Keyframes)
+    {
+        a.trackViews.clear();
+        for (auto& t : a.tracks) a.trackViews.push_back({ t.prop, t.keys.data(), (int)t.keys.size() });
+        s.tracks = a.trackViews.data();
+        s.trackCount = (int)a.trackViews.size();
+    }
     return s;
 }
 
@@ -259,27 +266,33 @@ void RenderNode(RenderCtx& ctx, Node* n, ImVec2 parentWorld, float parentAlpha, 
         run = ctx.animate;
         for (const Node* q = n; q && !run; q = q->parent) run = q == ctx.playRoot;
     }
-    if (!run)
+    // Timeline open: keyframe animations show the playhead time instead of running.
+    bool scrub = ctx.timeline >= 0 && spec && spec->preset == fim::Anim_Keyframes;
+    if (!run && !scrub)
     {
         RenderBody(ctx, n, world, lw, lh, parentAlpha, a, b);
         return;
     }
 
     fim::AnimSpec s = ToAnimSpec(*spec, delay);
-    AnimClock& c = (*ctx.clocks)[n->id];
-    if (c.lastFrame < ctx.frame - 1) { c.start = ctx.time; c.progress = 0; }
-    c.lastFrame = ctx.frame;
     fim::AnimValue v;
-    if (fim::AnimCategory(s.preset) == 2)
+    if (scrub) v = fim::AnimKeyframesAt(s, (float)ctx.timeline - delay);
+    else
     {
-        bool hovered = ctx.interactive && ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(a, b);
-        bool on = s.trigger == fim::Trigger_Press ? (hovered && ImGui::IsMouseDown(0)) : s.trigger == fim::Trigger_Active ? StateActive(n, ctx.vars) : hovered;
-        if (!ctx.interactive) on = std::fmod(ctx.time - c.start, 1.6) < 0.8;   // editor "Play": toggle the state
-        float step = ImGui::GetIO().DeltaTime / std::max(0.01f, s.duration);
-        c.progress = on ? std::min(1.0f, c.progress + step) : std::max(0.0f, c.progress - step);
-        v = fim::AnimSample(s, 0, c.progress);
+        AnimClock& c = (*ctx.clocks)[n->id];
+        if (c.lastFrame < ctx.frame - 1) { c.start = ctx.time; c.progress = 0; }
+        c.lastFrame = ctx.frame;
+        if (fim::AnimCategoryOf(s) == 2)
+        {
+            bool hovered = ctx.interactive && ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(a, b);
+            bool on = s.trigger == fim::Trigger_Press ? (hovered && ImGui::IsMouseDown(0)) : s.trigger == fim::Trigger_Active ? StateActive(n, ctx.vars) : hovered;
+            if (!ctx.interactive) on = std::fmod(ctx.time - c.start, 1.6) < 0.8;   // editor "Play": toggle the state
+            float step = ImGui::GetIO().DeltaTime / std::max(0.01f, s.duration);
+            c.progress = on ? std::min(1.0f, c.progress + step) : std::max(0.0f, c.progress - step);
+            v = fim::AnimSample(s, 0, c.progress);
+        }
+        else v = fim::AnimSample(s, (float)(ctx.time - c.start), 0);
     }
-    else v = fim::AnimSample(s, (float)(ctx.time - c.start), 0);
 
     if (v.dx == 0 && v.dy == 0 && v.scale == 1 && v.alpha == 1)
     {
@@ -440,7 +453,12 @@ static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh
     {
         if (sh.type == fim::Shadow_Drop) fim::DrawShadow(dl, a, b, r, sh, z, alpha);
         backdrop();
-        if (n->type != NodeType::Group) fim::FillRect(dl, a, b, r, ToPaint(fill), alpha);
+        if (n->type != NodeType::Group)
+        {
+            fim::fx::BeginBlend(dl, n->blend);
+            fim::FillRect(dl, a, b, r, ToPaint(fill), alpha);
+            fim::fx::EndBlend(dl, n->blend);
+        }
         textureOverlay();
         if (sh.type == fim::Shadow_Inner) fim::DrawShadow(dl, a, b, r, sh, z, alpha);
         break;
@@ -448,7 +466,9 @@ static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh
     case NodeType::Ellipse:
         if (sh.type == fim::Shadow_Drop) fim::DrawShadow(dl, a, b, r, sh, z, alpha, true);
         backdrop();
+        fim::fx::BeginBlend(dl, n->blend);
         fim::FillEllipse(dl, a, b, ToPaint(fill), alpha);
+        fim::fx::EndBlend(dl, n->blend);
         textureOverlay();
         if (sh.type == fim::Shadow_Inner) fim::DrawShadow(dl, a, b, r, sh, z, alpha, true);
         break;

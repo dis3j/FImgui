@@ -2,11 +2,11 @@
 
 # Fimgui
 
-Редактор интерфейсов для **Dear ImGui**, дизайн которого вдохновлён Figma. Меню рисуется на холсте вручную или по текстовому запросу к Claude: модель передаёт операции потоком, и они сразу появляются на холсте. Экспорт даёт готовую папку: `menu.h/.cpp`, иконки (SVG и PNG), изображения, шрифты и пример хоста на DirectX 11.
+Редактор интерфейсов для **Dear ImGui** и **Minecraft (Java Edition)**, дизайн которого вдохновлён Figma. Меню рисуется на холсте вручную или по текстовому запросу к Claude: модель передаёт операции потоком, и они сразу появляются на холсте. Экспорт даёт готовую папку: `menu.h/.cpp`, иконки (SVG и PNG), изображения, шрифты и пример хоста на DirectX 11 — или Screen для Fabric / NeoForge 1.21.1 с текстурами и шрифтами.
 
 ![](docs/screenshot.png)
 
-> Fimgui распространяется для ознакомительного, **некоммерческого** использования — см. [LICENSE](LICENSE). Проект не связан с Figma, Inc.; Figma — товарный знак Figma, Inc.
+> Fimgui — бесплатный инструмент: делайте в нём любые проекты, в том числе на продажу. **Продавать сам Fimgui нельзя** — см. [LICENSE](LICENSE). Проект не связан с Figma, Inc.; Figma — товарный знак Figma, Inc.
 
 ## Сборка
 
@@ -43,6 +43,21 @@ Workflow `.github/workflows/release.yml` проверяет, что тег со�
 - Свой заголовок окна вместо системного: логотип (открывает Projects), меню **File / Edit / View / Help**, название проекта, кнопки окна. Перетаскивание за пустое место, двойной клик разворачивает окно, работают Aero Snap и ресайз за края.
 - Размер интерфейса: **View → Interface scale** (100–175%, по умолчанию 115%).
 - Панель Design устроена как в Figma: подписи над полями, разделы Position, Layout, Appearance, Typography, Fill, Stroke, Effects, Export. У Fill и Stroke есть «глаз» — заливку или обводку можно скрыть, не удаляя; эффекты показаны списком и раскрываются по клику.
+- **Колорпикер** открывается по квадратику цвета. Вкладки сверху: Solid, Gradient (стопы и угол), Pattern (шум, линии, сетка, полосы, точки, шахматка), Image, Video, Shader (Aurora, Mesh, Waves, Radial glow, Plasma — запекаются в текстуру 256 px), режим наложения заливки и проверка контраста WCAG против фона под слоем. Ниже — квадрат насыщенности, пипетка (берёт цвет с экрана), оттенок, прозрачность, Hex / RGB / HSL / HSB и цвета со страницы.
+
+## Таймлайн и ключевые кадры
+
+**Alt+T**, кнопка на нижней панели или пресет **Keyframes** во вкладке Motion открывают таймлайн под холстом:
+
+![](docs/timeline.png)
+
+
+- линейка времени и плейхед (тяните по линейке), Play / Pause, возврат в начало, Loop, длина таймлайна и способ запуска: при появлении, в цикле, по наведению, нажатию или активному состоянию;
+- у каждого слоя дорожки **Position X**, **Position Y**, **Scale**, **Opacity**: ромб слева ставит или убирает ключ в позиции плейхеда, поле справа меняет значение (ключ создаётся сам), двойной клик по дорожке добавляет ключ;
+- ключи перетаскиваются по времени (шаг 0,01 с, с Alt — без шага), Shift / Ctrl — выделить несколько, Del — удалить, правый клик — easing до следующего ключа;
+- на холсте у выбранного слоя видна траектория движения; её точки можно перетаскивать.
+
+Ключевые кадры экспортируются в C++ (статические массивы в `menu.cpp`), в Java и в CSS (`@keyframes`).
 
 ## Проекты
 
@@ -212,6 +227,29 @@ if (state.Save_config_pressed) SaveConfig();
 
 Каждый фрейм верхнего уровня становится отдельным окном ImGui, которое можно перетаскивать за пустые места. Нужен Dear ImGui **1.92 или новее**: используются динамические размеры шрифтов. Редактор рисует холст тем же `fimgui_runtime`, поэтому экспорт выглядит так же, как в редакторе.
 
+## Экспорт в Minecraft (Java)
+
+В окне **Export** выберите **Minecraft Java**, загрузчик (**Fabric 1.21.1** с именами Yarn или **NeoForge 1.21.1** с именами Mojang), mod id и Java-пакет. Экспортируется первый фрейм верхнего уровня:
+
+```
+<out>/
+  src/main/java/<package>/
+    NexusMenu.java          дизайн: поля состояния, раскладка, взаимодействие, анимации (не зависит от загрузчика)
+    NexusScreen.java        Screen и адаптер отрисовки для выбранного загрузчика
+    fimgui/                 Java-runtime Fimgui: FimAnim, FimUi, FimGfx
+  src/main/resources/assets/<modid>/
+    textures/gui/<menu>/    запечённые слои (заливки, градиенты, обводки, тени, картинки, иконки) в 2x
+    font/                   шрифты дизайна как TTF-провайдеры
+  README.md, LICENSE-FIMGUI.txt
+```
+
+Скопируйте `src/` в свой мод и откройте экран: `MinecraftClient.getInstance().setScreen(new NexusScreen())` (Fabric) или `Minecraft.getInstance().setScreen(new NexusScreen())` (NeoForge). Состояние доступно как публичные поля: `screen.menu.fov`, `screen.menu.aim_enabled`, …
+
+- Прямоугольники без скруглений и эффектов рисуются через `fill`, всё сложнее запекается в текстуру слоя; у кнопок с hover / active цветами запекаются варианты и плавно сменяются.
+- Кнопки, вкладки, чекбоксы, слайдеры, Combo / Multi-combo и поля ввода работают как в превью; анимации (пресеты и ключевые кадры) считаются тем же кодом, что в редакторе.
+- Меню вписывается в окно и центрируется.
+- Ограничения: blur и стекло запекаются без мира за ними, GIF и видео показывают первый кадр, шрифты подключаются только в формате TTF.
+
 ## Горячие клавиши
 
 | | |
@@ -228,6 +266,7 @@ if (state.Save_config_pressed) SaveConfig();
 | Ctrl+Shift+C | Копировать как PNG |
 | Ctrl+Enter, Ctrl+I, Ctrl+E | Preview, AI, Export |
 | Ctrl+Shift+O, Ctrl+N, Ctrl+S | Projects, новый проект, сохранить |
+| Alt+T | Таймлайн |
 | Alt+F4 | Выход |
 | Shift+' / Ctrl+Shift+' / Ctrl+Alt+Y | Пиксельная сетка / привязка к пикселям / Pixel preview |
 
@@ -239,6 +278,7 @@ if (state.Save_config_pressed) SaveConfig();
 Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--preview] [--click id|@x,y frame [dy]]
            [--tab 0..4] [--import media x y] [--export dir] [--no-embed-fonts] [--screenshot out.png --frames N]
            [--workspace dir] [--project Name] [--save] [--home] [--ui-scale 1.25] [--check-updates]
+           [--export-java dir [fabric|neoforge]] [--timeline seconds]
            [--ai "запрос" --ai-base URL --ai-key KEY] [--mcp-port N]
 ```
 
@@ -248,7 +288,7 @@ Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--p
 
 ## Ограничения
 
-- Нет поворота, пера и редактирования векторов, компонентов и вариантов.
+- Нет поворота, пера и редактирования векторов, компонентов и вариантов. Ключевые кадры анимируют смещение, масштаб и прозрачность.
 - Градиенты только линейные, размытие теней приближённое.
 - Background blur, стекло, режимы смешивания и видео реализованы для DirectX 11. Видео декодируется через Media Foundation (Windows), ролики больше 1280 px уменьшаются при декодировании.
 - Слои, скрытые через Show when, всё равно занимают место в auto layout. Альтернативные варианты кладите в фрейм без auto layout.
@@ -256,19 +296,22 @@ Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--p
 
 ## Лицензия
 
-[Fimgui Non-Commercial License](LICENSE) (на английском и русском):
-- разрешено использовать, изучать, изменять и распространять Fimgui в некоммерческих целях: для ознакомления, обучения, исследований и хобби-проектов;
-- любое коммерческое использование — продажа, платные продукты и сервисы, монетизируемые игры и моды, работа внутри компании — только с письменного разрешения автора;
-- код и runtime, которые создаёт экспорт, подпадают под те же условия, поэтому в каждую экспортированную папку кладётся `LICENSE-FIMGUI.txt`. Ваш собственный контент (тексты, картинки, макеты) остаётся вашим.
+[Fimgui License 2.0](LICENSE) (на английском и русском):
+- Fimgui можно бесплатно использовать как инструмент для любых целей, в том числе коммерческих и внутри компании, а также изучать и изменять;
+- ваши проекты — дизайны и всё, что создаёт экспорт (код, текстуры, runtime-файлы `fimgui_runtime`, `fimgui_fx`, Java-runtime), — можно использовать, распространять и продавать в составе своих продуктов, игр и модов без отчислений; в начале runtime-файлов сохраняйте строку об авторском праве;
+- **сам Fimgui продавать нельзя**: ни оригинал, ни изменённую версию, ни платный доступ к нему, ни runtime отдельно от проекта. Бесплатно делиться копиями можно, приложив LICENSE.
+
+В каждую экспортированную папку кладётся `LICENSE-FIMGUI.txt`.
 
 Сторонние компоненты (Dear ImGui, NanoSVG, stb, nlohmann/json, шрифт Inter) распространяются по своим лицензиям, см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Структура
 
 ```
-src/        редактор: app, project, ui_home, ui_chrome (заголовок, меню, обновления), updater, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
+src/        редактор: app, project, ui_home, ui_chrome (заголовок, меню, обновления), updater, ui_timeline, ui_picker, codegen_java, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
 tools/      fimgui-mcp: stdio-мост для MCP-клиентов; make_logo.py — генератор логотипа (SVG, PNG, ICO); patch_notes.py — патчноут версии из CHANGELOG
 .github/    workflows: build (проверка сборки) и release (релиз по тегу vX.Y.Z)
-runtime/    fimgui_runtime (рендер, анимации, GIF) и fimgui_fx (blur, glass, blend, видео) — общие для редактора и экспорта
+runtime/    fimgui_runtime (рендер, анимации, GIF) и fimgui_fx (blur, glass, blend, видео) — общие для редактора и экспорта;
+            java/ — Java-runtime для экспорта в Minecraft
 third_party/, resources/fonts, examples/
 ```

@@ -59,11 +59,15 @@ json McpToolList()
                  { "parent_id", { { "type", "string" }, { "description", "Frame to place the layer in" } } },
                  { "x", { { "type", "number" } } }, { "y", { { "type", "number" } } },
                  { "place", { { "type", "boolean" }, { "description", "Create a layer (default true)" } } } }, { "path" }), false);
-    add("export_project", "Export ImGui project",
-        "Writes the C++ project for all top-level frames: menu .h/.cpp, runtime, effects, icons, images, videos, fonts and a DirectX 11 example host.",
+    add("export_project", "Export project",
+        "target 'imgui' (default) writes the C++ project for all top-level frames: menu .h/.cpp, runtime, effects, icons, images, videos, fonts and a DirectX 11 example host. "
+        "target 'minecraft' writes a Minecraft 1.21.1 GUI for the first top-level frame: a Screen for Fabric or NeoForge, the menu class, the Fimgui Java runtime, baked layer textures and TTF fonts (src/main/java + src/main/resources).",
         Schema({ { "out_dir", { { "type", "string" }, { "description", "Absolute output folder" } } },
+                 { "target", { { "type", "string" }, { "enum", { "imgui", "minecraft" } } } },
                  { "namespace", { { "type", "string" } } }, { "file_base", { { "type", "string" } } },
-                 { "embed_fonts", { { "type", "boolean" } } } }, { "out_dir" }), false);
+                 { "embed_fonts", { { "type", "boolean" } } },
+                 { "loader", { { "type", "string" }, { "enum", { "fabric", "neoforge" } } } },
+                 { "mod_id", { { "type", "string" } } }, { "package", { { "type", "string" } } }, { "class_name", { { "type", "string" } } } }, { "out_dir" }), false);
     add("preview", "Preview",
         "Controls the canvas preview: 'on' makes the menu interactive with animations, 'off' returns to editing, 'play' replays the animations of node_id.",
         Schema({ { "mode", { { "type", "string" }, { "enum", { "on", "off", "play" } } } }, { "node_id", { { "type", "string" } } } }, { "mode" }), false);
@@ -253,6 +257,20 @@ json App::McpTool(const std::string& name, const json& args)
         json out = { { "asset", asset }, { "kind", AssetKindName(a.kind) }, { "width", a.width }, { "height", a.height } };
         if (n) out["node_id"] = n->id;
         return TextResult(out.dump());
+    }
+    if (name == "export_project" && args.value("target", std::string("imgui")) == "minecraft")
+    {
+        JavaOptions saved = javaOpt;
+        javaOpt.outDir = args.value("out_dir", std::string());
+        if (javaOpt.outDir.empty()) { javaOpt = saved; return TextResult("out_dir is required", true); }
+        if (args.contains("loader")) javaOpt.loader = args["loader"].get<std::string>() == "neoforge" ? 1 : 0;
+        if (args.contains("mod_id")) javaOpt.modId = args["mod_id"].get<std::string>();
+        if (args.contains("package")) javaOpt.package = args["package"].get<std::string>();
+        if (args.contains("class_name")) javaOpt.className = args["class_name"].get<std::string>();
+        ExportResult r = RunJavaExport();
+        McpLog("export_project (minecraft): " + r.message);
+        json out = { { "ok", r.ok }, { "message", r.message }, { "files", r.files } };
+        return TextResult(out.dump(1), !r.ok);
     }
     if (name == "export_project")
     {

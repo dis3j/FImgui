@@ -218,6 +218,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     float zoomArg = 0.0f;
     bool noEmbedFonts = false;
     bool forceHome = false;
+    bool exportJava = false;
     struct Click { std::string id; int frame; float dy; };
     std::vector<Click> clicks;   // synthetic clicks for automated checks
     int captureFrame = 45;
@@ -282,6 +283,14 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (a == "--workspace") { g_appInstance.workspace = next(); g_appInstance.persistSettings = false; }
             else if (a == "--home") forceHome = true;
             else if (a == "--check-updates") g_appInstance.CheckForUpdates();
+            else if (a == "--export-java")
+            {
+                g_appInstance.javaOpt.outDir = next();
+                if (i + 1 < args.size() && (args[i + 1] == "fabric" || args[i + 1] == "neoforge")) g_appInstance.javaOpt.loader = next() == "neoforge" ? 1 : 0;
+                g_appInstance.persistSettings = false;
+                exportJava = true;
+            }
+            else if (a == "--timeline") { g_appInstance.timelineOpen = true; g_appInstance.timelineTime = std::atof(next().c_str()); }
             else if (a == "--ui-scale") { g_appInstance.pendingUiScale = (float)std::atof(next().c_str()); g_appInstance.persistSettings = false; }
             else if (a == "--save") g_appInstance.deferred.push_back([] { g_appInstance.SaveDocument(false); });
             else if (a == "--project")
@@ -395,6 +404,14 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             if (noEmbedFonts) opt.embedFonts = false;
             ExportResult r = ExportProject(g_appInstance.doc, opt, platform::ExeDir() + "/runtime");
             platform::WriteText(exportDir + "/export_log.txt", r.message + "\n");
+            if (screenshot.empty()) done = true;
+        }
+        if (frame == 5 && exportJava)
+        {
+            ExportResult r = g_appInstance.RunJavaExport();
+            std::string log = r.message + "\n";
+            for (auto& f : r.files) log += f + "\n";
+            platform::WriteText(g_appInstance.javaOpt.outDir + "/export_log.txt", log);
             if (screenshot.empty()) done = true;
         }
         if (!screenshot.empty() && frame == captureFrame) { CaptureBackbuffer(screenshot); done = true; }

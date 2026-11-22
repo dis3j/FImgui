@@ -161,6 +161,8 @@ void App::Frame()
         if (persistSettings) SaveSettings();
     }
     PollUpdates();
+    TickTimeline();
+    CollectPageColors();
     DrawTitleBar();
     ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
@@ -193,9 +195,29 @@ void App::Frame()
     if (ImGui::IsItemActive()) leftW += io.MouseDelta.x;
     ImGui::SetCursorScreenPos(ImVec2(sp.x + 1, sp.y));
     float canvasW = totalW - leftW - rightW - 2;
-    ImGui::BeginChild("##canvas", ImVec2(canvasW, vp->WorkSize.y), 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove);
+    float tlH = 0;
+    if (timelineOpen && !preview)
+    {
+        if (timelineH <= 0) timelineH = theme::U(250);
+        tlH = std::clamp(timelineH, theme::U(150), vp->WorkSize.y * 0.65f);
+    }
+    ImGui::BeginGroup();
+    ImGui::BeginChild("##canvas", ImVec2(canvasW, vp->WorkSize.y - tlH), 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove);
     DrawCanvas();
     ImGui::EndChild();
+    if (tlH > 0)
+    {
+        // splitter + timeline
+        ImVec2 tp = ImGui::GetCursorScreenPos();
+        ImGui::InvisibleButton("##splitT", ImVec2(canvasW, theme::U(4)));
+        if (ImGui::IsItemHovered() || ImGui::IsItemActive()) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+        if (ImGui::IsItemActive()) timelineH -= io.MouseDelta.y;
+        ImGui::GetWindowDrawList()->AddLine(ImVec2(tp.x, tp.y + theme::U(2)), ImVec2(tp.x + canvasW, tp.y + theme::U(2)), theme::Divider);
+        ImGui::BeginChild("##timeline", ImVec2(canvasW, tlH - theme::U(4)), 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove);
+        DrawTimeline();
+        ImGui::EndChild();
+    }
+    ImGui::EndGroup();
     ImGui::SameLine(0, 0);
     sp = ImGui::GetCursorScreenPos();
     ImGui::GetWindowDrawList()->AddLine(sp, ImVec2(sp.x, sp.y + vp->WorkSize.y), theme::Divider);
@@ -509,6 +531,13 @@ void App::SaveSettings()
     j["embedFonts"] = exportOpt.embedFonts;
     j["writeExample"] = exportOpt.writeExample;
     j["iconScale"] = exportOpt.iconScale;
+    j["exportTarget"] = exportTarget;
+    j["javaDir"] = javaOpt.outDir;
+    j["javaLoader"] = javaOpt.loader;
+    j["javaModId"] = javaOpt.modId;
+    j["javaPackage"] = javaOpt.package;
+    j["javaTextureScale"] = javaOpt.textureScale;
+    j["javaTtf"] = javaOpt.ttfFonts;
     j["leftW"] = leftW / theme::dpi;
     j["rightW"] = rightW / theme::dpi;
     platform::WriteText(platform::AppDataDir() + "/settings.json", j.dump(1));
@@ -543,6 +572,13 @@ void App::LoadSettings()
     exportOpt.embedFonts = j.value("embedFonts", exportOpt.embedFonts);
     exportOpt.writeExample = j.value("writeExample", exportOpt.writeExample);
     exportOpt.iconScale = j.value("iconScale", exportOpt.iconScale);
+    exportTarget = j.value("exportTarget", exportTarget);
+    javaOpt.outDir = j.value("javaDir", javaOpt.outDir);
+    javaOpt.loader = j.value("javaLoader", javaOpt.loader);
+    javaOpt.modId = j.value("javaModId", javaOpt.modId);
+    javaOpt.package = j.value("javaPackage", javaOpt.package);
+    javaOpt.textureScale = j.value("javaTextureScale", javaOpt.textureScale);
+    javaOpt.ttfFonts = j.value("javaTtf", javaOpt.ttfFonts);
     leftW = j.value("leftW", 0.0f) * theme::dpi;
     rightW = j.value("rightW", 0.0f) * theme::dpi;
 }
@@ -1043,7 +1079,7 @@ bool App::RenderRegionPNG(ImVec2 wa, ImVec2 wb, float scale, std::vector<unsigne
     return !png.empty();
 }
 
-bool App::RenderNodePNG(Node* n, float scale, std::vector<unsigned char>& png, int* outW, int* outH)
+bool App::RenderNodePNG(Node* n, float scale, std::vector<unsigned char>& png, int* outW, int* outH, ImVec2* worldMin)
 {
     ImVec2 a, b;
     NodeWorldRect(n, &vars, &a, &b);
@@ -1069,7 +1105,41 @@ bool App::RenderNodePNG(Node* n, float scale, std::vector<unsigned char>& png, i
     png = gfx::EncodePNG(rgba.data(), w, h);
     if (outW) *outW = w;
     if (outH) *outH = h;
+    if (worldMin) *worldMin = a;
     return true;
+}
+
+bool App::BakeLayerPNG(Node* n, int variant, float scale, std::vector<unsigned char>& png, int* w, int* h, ImVec2* offset)
+{
+    // Temporarily strip the layer down to its own appearance.
+    std::vector<bool> childVis;
+    for (auto& c : n->children) { childVis.push_back(c->visible); c->visible = false; }
+    Paint fill = n->fill;
+    float width = n->w, opacity = n->opacity;
+    AnimFx anim = n->anim;
+    n->opacity = 1.0f;
+    n->anim.preset = 0;
+    if (variant == 1) n->fill = Paint{ 1, n->hoverColor };
+    if (variant == 2) n->fill = Paint{ 1, n->activeColor };
+    if (variant == 3) if (Node* owner = SliderOwner(n)) n->w = owner->w;
+    ImVec2 a, b, wmin;
+    NodeWorldRect(n, &vars, &a, &b);
+    bool ok = RenderNodePNG(n, scale, png, w, h, &wmin);
+    if (variant == 3) a.x = n->parent ? n->parent->AbsPos().x + n->x : a.x;
+    for (size_t i = 0; i < childVis.size(); i++) n->children[i]->visible = childVis[i];
+    n->fill = fill;
+    n->w = width;
+    n->opacity = opacity;
+    n->anim = anim;
+    if (ok && offset) *offset = ImVec2(wmin.x - a.x, wmin.y - a.y);
+    return ok;
+}
+
+ExportResult App::RunJavaExport()
+{
+    if (javaOpt.outDir.empty()) javaOpt.outDir = exportOpt.outDir.empty() ? std::string() : (fs::u8path(exportOpt.outDir).parent_path() / "minecraft").u8string();
+    return ExportJava(doc, javaOpt, platform::ExeDir() + "/runtime",
+                      [this](Node* n, int variant, float scale, std::vector<unsigned char>& png, int* w, int* h, ImVec2* off) { return BakeLayerPNG(n, variant, scale, png, w, h, off); });
 }
 
 void App::CopyAs(int format)

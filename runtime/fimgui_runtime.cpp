@@ -1,5 +1,5 @@
 // fimgui_runtime.cpp - see fimgui_runtime.h
-// Part of Fimgui - non-commercial use only, see LICENSE-FIMGUI.txt (https://github.com/dis3j/FImgui).
+// Part of Fimgui (c) 2026 Philip, https://github.com/dis3j/FImgui. Free to use in your projects, including commercial ones; see LICENSE-FIMGUI.txt.
 #include "fimgui_runtime.h"
 #include "imgui_internal.h"
 #include <math.h>
@@ -267,8 +267,14 @@ namespace fim
     int AnimCategory(int p)
     {
         if (p >= Anim_Pulse && p <= Anim_Wiggle) return 1;
-        if (p >= Anim_Lift) return 2;
+        if (p >= Anim_Lift && p <= Anim_Dim) return 2;
         return 0;
+    }
+
+    int AnimCategoryOf(const AnimSpec& s)
+    {
+        if (s.preset != Anim_Keyframes) return AnimCategory(s.preset);
+        return s.trigger == Trigger_Loop ? 1 : s.trigger == Trigger_Appear ? 0 : 2;
     }
 
     static float BezierCoord(float t, float p1, float p2)
@@ -317,11 +323,53 @@ namespace fim
         return t;
     }
 
+    float KeyTrackSample(const KeyTrack& t, float time, const float bezier[4])
+    {
+        if (t.count <= 0) return t.prop == Prop_Scale || t.prop == Prop_Opacity ? 1.0f : 0.0f;
+        if (time <= t.keys[0].time) return t.keys[0].value;
+        for (int i = 0; i + 1 < t.count; i++)
+        {
+            const Keyframe& a = t.keys[i];
+            const Keyframe& b = t.keys[i + 1];
+            if (time > b.time) continue;
+            float span = b.time - a.time;
+            float p = span > 1e-5f ? (time - a.time) / span : 1.0f;
+            return a.value + (b.value - a.value) * Ease(a.easing, bezier, p);
+        }
+        return t.keys[t.count - 1].value;
+    }
+
+    AnimValue AnimKeyframesAt(const AnimSpec& s, float time)
+    {
+        AnimValue v;
+        for (int i = 0; i < s.trackCount; i++)
+        {
+            float x = KeyTrackSample(s.tracks[i], time, s.bezier);
+            switch (s.tracks[i].prop)
+            {
+            case Prop_X: v.dx = x; break;
+            case Prop_Y: v.dy = x; break;
+            case Prop_Scale: v.scale = x; break;
+            case Prop_Opacity: v.alpha = ImSaturate(x); break;
+            }
+        }
+        return v;
+    }
+
     AnimValue AnimSample(const AnimSpec& s, float time, float progress)
     {
         AnimValue v;
-        int cat = AnimCategory(s.preset);
         if (s.preset == Anim_None) return v;
+        if (s.preset == Anim_Keyframes)
+        {
+            float len = ImMax(0.01f, s.duration);
+            int kc = AnimCategoryOf(s);
+            float t = kc == 2 ? ImSaturate(progress) * len
+                    : kc == 1 ? fmodf(ImMax(time - s.delay, 0.0f), len)
+                    : ImClamp(time - s.delay, 0.0f, len);
+            return AnimKeyframesAt(s, t);
+        }
+        int cat = AnimCategory(s.preset);
         if (cat == 0)
         {
             float raw = s.duration > 0 ? ImSaturate((time - s.delay) / s.duration) : 1.0f;
@@ -384,7 +432,7 @@ namespace fim
         float* prog = st->GetFloatRef(key ^ 0x0A13u, 0.0f);
         if (*last < frame - 1) *start = now;   // not drawn last frame -> (re)appeared
         *last = frame;
-        if (AnimCategory(s.preset) == 2)
+        if (AnimCategoryOf(s) == 2)
         {
             bool on = s.trigger == Trigger_Press ? held : s.trigger == Trigger_Active ? active : hovered;
             float step = ImGui::GetIO().DeltaTime / ImMax(0.01f, s.duration);

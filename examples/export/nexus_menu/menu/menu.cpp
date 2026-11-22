@@ -6,7 +6,7 @@
 #include <cmath>
 #include <string>
 
-namespace menu
+namespace project_a
 {
 ImFont* F_Inter_Bold = nullptr;
 ImFont* F_Inter_Regular = nullptr;
@@ -1104,4 +1104,4 @@ void Render(State& state, float scale)
     Render_Nexus_Menu(state, scale);
 }
 
-} // namespace menu
+} // namespace project_a

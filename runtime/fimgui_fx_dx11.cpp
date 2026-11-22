@@ -1,5 +1,5 @@
 // fimgui_fx_dx11.cpp - DirectX 11 implementation of fimgui_fx.h.
-// Part of Fimgui - non-commercial use only, see LICENSE-FIMGUI.txt (https://github.com/dis3j/FImgui).
+// Part of Fimgui (c) 2026 Philip, https://github.com/dis3j/FImgui. Free to use in your projects, including commercial ones; see LICENSE-FIMGUI.txt.
 // Link: d3d11, d3dcompiler, mfplat, mfreadwrite, mfuuid, shlwapi (pragmas below handle MSVC).
 #ifndef NOMINMAX
 #define NOMINMAX   // keep std::min/std::max usable next to <windows.h>
@@ -531,6 +531,20 @@ float4 main(VO i) : SV_Target
             BlendCmd c = { blend, wrap ? 1 : 0 };
             dl->AddCallback(BlendCallback, &c, sizeof(c));
             ImageShape(dl, tex, a, b, r, uv0, uv1, col, !wrap);
+            dl->AddCallback(ImGui::GetPlatformIO().DrawCallback_ResetRenderState, nullptr);
+        }
+
+        void BeginBlend(ImDrawList* dl, int blend)
+        {
+            blend = ImClamp(blend, 0, 3);
+            if (blend == Blend_Normal || !Available()) return;
+            BlendCmd c = { blend, 0 };
+            dl->AddCallback(BlendCallback, &c, sizeof(c));
+        }
+
+        void EndBlend(ImDrawList* dl, int blend)
+        {
+            if (ImClamp(blend, 0, 3) == Blend_Normal || !Available()) return;
             dl->AddCallback(ImGui::GetPlatformIO().DrawCallback_ResetRenderState, nullptr);
         }
 

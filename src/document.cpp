@@ -33,9 +33,11 @@ bool RoleFromName(const std::string& s, Role* out)
 }
 
 static const char* kPresetKeys[] = { "none", "fade", "slide-up", "slide-down", "slide-left", "slide-right", "pop", "zoom", "bounce",
-                                     "pulse", "float", "breathe", "heartbeat", "wiggle", "lift", "grow", "press", "nudge", "dim" };
+                                     "pulse", "float", "breathe", "heartbeat", "wiggle", "lift", "grow", "press", "nudge", "dim", "keyframes" };
 static const char* kPresetLabels[] = { "None", "Fade", "Slide up", "Slide down", "Slide left", "Slide right", "Pop", "Zoom", "Bounce",
-                                       "Pulse", "Float", "Breathe", "Heartbeat", "Wiggle", "Lift", "Grow", "Press", "Nudge", "Dim" };
+                                       "Pulse", "Float", "Breathe", "Heartbeat", "Wiggle", "Lift", "Grow", "Press", "Nudge", "Dim", "Keyframes" };
+static const char* kPropKeys[] = { "x", "y", "scale", "opacity" };
+static const char* kPropLabels[] = { "Position X", "Position Y", "Scale", "Opacity" };
 static const char* kEasingKeys[] = { "linear", "ease-in", "ease-out", "ease-in-out", "back-out", "elastic-out", "bounce-out", "spring", "bezier" };
 static const char* kEasingLabels[] = { "Linear", "Ease in", "Ease out", "Ease in-out", "Back out", "Elastic", "Bounce", "Spring", "Custom bezier" };
 static const char* kTriggerKeys[] = { "appear", "hover", "press", "active", "loop" };
@@ -46,6 +48,26 @@ const char* AnimPresetLabel(int p) { return p >= 0 && p < kPresetCount ? kPreset
 const char* EasingKey(int e) { return e >= 0 && e < 9 ? kEasingKeys[e] : "ease-out"; }
 const char* EasingLabel(int e) { return e >= 0 && e < 9 ? kEasingLabels[e] : "Ease out"; }
 const char* TriggerKey(int t) { return t >= 0 && t < 5 ? kTriggerKeys[t] : "appear"; }
+const char* AnimPropKey(int p) { return p >= 0 && p < fim::Prop_Count ? kPropKeys[p] : "x"; }
+const char* AnimPropLabel(int p) { return p >= 0 && p < fim::Prop_Count ? kPropLabels[p] : "Position X"; }
+
+KeyTrackFx* AnimFx::Track(int prop, bool create)
+{
+    for (auto& t : tracks) if (t.prop == prop) return &t;
+    if (!create) return nullptr;
+    KeyTrackFx t;
+    t.prop = prop;
+    tracks.push_back(t);
+    std::sort(tracks.begin(), tracks.end(), [](const KeyTrackFx& a, const KeyTrackFx& b) { return a.prop < b.prop; });
+    for (auto& q : tracks) if (q.prop == prop) return &q;
+    return nullptr;
+}
+
+const KeyTrackFx* AnimFx::Track(int prop) const
+{
+    for (auto& t : tracks) if (t.prop == prop) return &t;
+    return nullptr;
+}
 
 AnimFx AnimDefaults(int p)
 {
@@ -68,6 +90,14 @@ AnimFx AnimDefaults(int p)
     case 16: a.trigger = 2; a.duration = 0.12f; a.easing = 2; a.intensity = 0.05f; break;                    // press
     case 17: a.trigger = 1; a.duration = 0.2f; a.easing = 2; a.distance = 4; break;                          // nudge
     case 18: a.trigger = 1; a.duration = 0.2f; a.easing = 2; a.intensity = 0.35f; break;                     // dim
+    case 19:                                                                                                  // keyframes: a starter rise-in
+    {
+        a.trigger = 0; a.duration = 1.0f; a.easing = 2;
+        KeyTrackFx y; y.prop = fim::Prop_Y; y.keys = { { 0.0f, 24.0f, fim::Ease_Out }, { 0.6f, 0.0f, fim::Ease_Out } };
+        KeyTrackFx o; o.prop = fim::Prop_Opacity; o.keys = { { 0.0f, 0.0f, fim::Ease_Out }, { 0.4f, 1.0f, fim::Ease_Out } };
+        a.tracks = { y, o };
+        break;
+    }
     }
     return a;
 }
@@ -378,6 +408,7 @@ json NodeToJson(const Node* n)
     else if (!PaintEq(n->fill, d.fill)) j["fill"] = PaintJ(n->fill);
     if (n->strokeHidden) { Paint p = n->stroke; p.type = n->strokeHidden; j["stroke"] = PaintJ(p); j["strokeHidden"] = true; }
     else if (!PaintEq(n->stroke, d.stroke)) j["stroke"] = PaintJ(n->stroke);
+    if (n->blend) j["blend"] = n->blend == 1 ? "plus-lighter" : n->blend == 2 ? "multiply" : "screen";
     if (n->stroke.type && n->strokeWidth != 1.0f) j["strokeWidth"] = n->strokeWidth;
     if (n->stroke.type && n->strokeAlign != 0) j["strokeAlign"] = n->strokeAlign == 1 ? "center" : "outside";
     if (n->effect.type)
@@ -401,6 +432,18 @@ json NodeToJson(const Node* n)
                     { "duration", a.duration }, { "delay", a.delay }, { "distance", a.distance }, { "scale", a.scale }, { "intensity", a.intensity } };
         if (a.stagger > 0) aj["stagger"] = a.stagger;
         if (a.easing == 8) aj["bezier"] = { a.bezier[0], a.bezier[1], a.bezier[2], a.bezier[3] };
+        if (a.preset == fim::Anim_Keyframes)
+        {
+            json kj = json::object();
+            for (auto& t : a.tracks)
+            {
+                if (t.keys.empty()) continue;
+                json arr = json::array();
+                for (auto& k : t.keys) arr.push_back({ { "t", k.time }, { "v", k.value }, { "ease", EasingKey(k.easing) } });
+                kj[AnimPropKey(t.prop)] = arr;
+            }
+            aj["keyframes"] = kj;
+        }
         j["animation"] = aj;
     }
     if (n->type == NodeType::Frame && !n->clip) j["clip"] = false;
@@ -506,6 +549,7 @@ void ApplyProps(Node* n, const json& p, Document* doc)
         else if (k == "fill" || k == "color" || k == "background") n->fill = PaintFromJ(v, n->fill);
         else if (k == "stroke" || k == "border") { n->stroke = PaintFromJ(v, n->stroke); if (n->stroke.type == 2) n->stroke.type = 1; }
         else if (k == "strokeWidth") n->strokeWidth = Num(v, n->strokeWidth);
+        else if (k == "blend" && v.is_string()) n->blend = IndexOfStr(v.get<std::string>(), { "normal", "plus-lighter", "multiply", "screen" }, 0);
         else if (k == "strokeAlign" && v.is_string()) n->strokeAlign = IndexOfStr(v.get<std::string>(), { "inside", "center", "outside" }, 0);
         else if (k == "shadow")
         {
@@ -588,6 +632,35 @@ void ApplyProps(Node* n, const json& p, Document* doc)
             a.intensity = Num(v.value("intensity", json(a.intensity)), a.intensity);
             a.stagger = std::max(0.0f, Num(v.value("stagger", json(a.stagger)), a.stagger));
             if (v.contains("bezier") && v["bezier"].is_array() && v["bezier"].size() == 4) { a.easing = 8; for (int i = 0; i < 4; i++) a.bezier[i] = Num(v["bezier"][i], a.bezier[i]); }
+            // "keyframes": { "x": [ { "t": 0, "v": 24, "ease": "ease-out" }, ... ], "y": ..., "scale": ..., "opacity": ... }
+            if (v.contains("keyframes") && v["keyframes"].is_object())
+            {
+                a.tracks.clear();
+                for (int p = 0; p < fim::Prop_Count; p++)
+                {
+                    auto it = v["keyframes"].find(kPropKeys[p]);
+                    if (it == v["keyframes"].end() || !it->is_array()) continue;
+                    KeyTrackFx t;
+                    t.prop = p;
+                    for (auto& k : *it)
+                    {
+                        fim::Keyframe kf{ 0, p >= fim::Prop_Scale ? 1.0f : 0.0f, a.easing };
+                        if (k.is_array() && k.size() >= 2) { kf.time = Num(k[0], 0); kf.value = Num(k[1], kf.value); if (k.size() > 2 && k[2].is_string()) kf.easing = IndexOfStr(k[2].get<std::string>(), { "linear", "ease-in", "ease-out", "ease-in-out", "back-out", "elastic-out", "bounce-out", "spring", "bezier" }, kf.easing); }
+                        else if (k.is_object())
+                        {
+                            kf.time = Num(k.value("t", json(0)), 0);
+                            kf.value = Num(k.value("v", json(kf.value)), kf.value);
+                            if (k.contains("ease") && k["ease"].is_string()) kf.easing = IndexOfStr(k["ease"].get<std::string>(), { "linear", "ease-in", "ease-out", "ease-in-out", "back-out", "elastic-out", "bounce-out", "spring", "bezier" }, kf.easing);
+                        }
+                        kf.time = std::max(0.0f, kf.time);
+                        t.keys.push_back(kf);
+                    }
+                    std::sort(t.keys.begin(), t.keys.end(), [](const fim::Keyframe& x, const fim::Keyframe& y) { return x.time < y.time; });
+                    if (!t.keys.empty()) a.tracks.push_back(t);
+                }
+                // The timeline is at least as long as its last key.
+                for (auto& t : a.tracks) a.duration = std::max(a.duration, t.keys.back().time);
+            }
         }
         else if (k == "clip") n->clip = Num(v, 1) != 0;
         else if (k == "text" && v.is_string()) n->text = v.get<std::string>();

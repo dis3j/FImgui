@@ -442,10 +442,10 @@ static bool FontCombo(const char* id, std::string* family, float width)
     return changed;
 }
 
-static bool PaintEditor(const char* id, Paint* p, float width)
+static bool PaintEditor(const char* id, Paint* p, float width, const ui::PickerHeader* header = nullptr)
 {
     ImGui::PushID(id);
-    bool ch = ui::ColorRow("##c0", &p->c0, width);
+    bool ch = ui::ColorRow("##c0", &p->c0, width, header);
     if (p->type == 2)
     {
         ch |= ui::ColorRow("##c1", &p->c1, width);
@@ -457,7 +457,7 @@ static bool PaintEditor(const char* id, Paint* p, float width)
 
 // One Fill / Stroke list row in the Figma layout: the paint editor, then eye and minus buttons on its first line.
 // The eye stashes the paint type in *hidden (the paint renders as none meanwhile). Returns 1 on edit, 2 on eye, -1 on remove.
-static int PaintRow(const char* id, Paint* paint, int* hidden, float W)
+static int PaintRow(const char* id, Paint* paint, int* hidden, float W, const std::function<int(Paint*, ImVec4**)>& hook = nullptr)
 {
     float fh = ImGui::GetFrameHeight();
     float rowW = W - fh * 2 - U(8);
@@ -465,7 +465,9 @@ static int PaintRow(const char* id, Paint* paint, int* hidden, float W)
     Paint view = *paint;
     if (*hidden) view.type = *hidden;
     if (*hidden) ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.45f);
-    bool ch = PaintEditor(id, &view, rowW);
+    ui::PickerHeader header;
+    if (hook) header = [&](ImVec4** target) { return hook(&view, target); };
+    bool ch = PaintEditor(id, &view, rowW, hook ? &header : nullptr);
     if (*hidden) ImGui::PopStyleVar();
     ImVec2 end = ImGui::GetCursorScreenPos();
     ImGui::SetCursorScreenPos(ImVec2(p0.x + rowW + U(4), p0.y));
@@ -829,10 +831,51 @@ void App::DrawDesignTab()
             }
             ImGui::EndPopup();
         }
-        if (has && PaintRow("fill", &n->fill, &n->fillHidden, W))
+        auto hook = [&](Paint* p, ImVec4** target) { return FillPickerHeader(n, p, target, false); };
+        if (has && PaintRow("fill", &n->fill, &n->fillHidden, W, hook))
         {
             for (Node* q : nodes) { q->fill = n->fill; q->fillHidden = n->fillHidden; }
             MarkDirty();
+        }
+        // Media fill (pattern / image / video / shader) drawn over the color
+        bool mediaOk = n->type == NodeType::Frame || n->type == NodeType::Rect || n->type == NodeType::Ellipse;
+        if (mediaOk && n->texture.on)
+        {
+            auto it = doc.assets.find(n->texture.asset);
+            ImVec2 mp = ImGui::GetCursorScreenPos();
+            float rowW = W - fh * 2 - U(8);
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            dl->AddRectFilled(mp, ImVec2(mp.x + rowW, mp.y + fh), Field, ImGui::GetStyle().FrameRounding);
+            if (ImGui::InvisibleButton("##media", ImVec2(rowW, fh))) ImGui::OpenPopup("##mediapick");
+            if (it != doc.assets.end())
+            {
+                gfx::TexInfo ti = gfx::AssetTexture(it->second, fh, fh, false);
+                if (ti.id) dl->AddImage((ImTextureID)ti.id, ImVec2(mp.x + U(3), mp.y + U(3)), ImVec2(mp.x + fh - U(3), mp.y + fh - U(3)));
+                const char* kinds[] = { "Image", "SVG", "GIF", "Video" };
+                bool shader = it->second.name.rfind("shader_", 0) == 0;
+                std::string label = std::string(shader ? "Shader" : n->texture.fit == 2 ? "Pattern" : kinds[it->second.kind & 3]) + "  " + it->second.name;
+                dl->PushClipRect(mp, ImVec2(mp.x + rowW - U(48), mp.y + fh), true);
+                dl->AddText(ImVec2(mp.x + fh + U(4), mp.y + (fh - ImGui::GetFontSize()) * 0.5f), Text, label.c_str());
+                dl->PopClipRect();
+            }
+            char op[16];
+            snprintf(op, sizeof(op), "%d%%", (int)std::round(n->texture.opacity * 100));
+            dl->AddText(ImVec2(mp.x + rowW - U(40), mp.y + (fh - ImGui::GetFontSize()) * 0.5f), TextDim, op);
+            ImGui::SameLine(0, U(4));
+            if (IconButton("##meye", Icon::Eye, false, 0, "Opacity 0 / 100%")) { n->texture.opacity = n->texture.opacity > 0 ? 0.0f : 1.0f; MarkDirty(); }
+            ImGui::SameLine(0, U(4));
+            if (IconButton("##mrm", Icon::Minus, false, 0, "Remove media")) { for (Node* q : nodes) q->texture.on = false; MarkDirty(); }
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(12), U(12)));
+            ImGui::SetNextWindowPos(ImVec2(mp.x - U(28), std::min(mp.y - U(40), ImGui::GetMainViewport()->WorkPos.y + ImGui::GetMainViewport()->WorkSize.y - U(470))), ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
+            if (ImGui::BeginPopup("##mediapick"))
+            {
+                ImVec4* target = &n->fill.c0;
+                int r = FillPickerHeader(n, &n->fill, &target, true);
+                if (!(r & 2) && ui::ColorPickerBody(target, U(240))) r |= 1;
+                if (r & 1) MarkDirty();
+                ImGui::EndPopup();
+            }
+            ImGui::PopStyleVar();
         }
     }
 
@@ -1197,7 +1240,7 @@ void App::DrawToolbar()
         { Tool::Line, Icon::Line, "Line (L)" }, { Tool::Text, Icon::Text, "Text (T)" },
     };
     float bs = U(32);
-    float width = bs * 10 + U(4) * 9 + U(16) + U(20);
+    float width = bs * 11 + U(4) * 10 + U(16) + U(20);
     ImVec2 pos((canvasMin.x + canvasMax.x - width) * 0.5f, canvasMax.y - h - U(16));
     ImGui::SetNextWindowPos(pos);
     ImGui::SetNextWindowSize(ImVec2(width, h));
@@ -1227,6 +1270,8 @@ void App::DrawToolbar()
     ImGui::SameLine(0, U(10));
     if (IconButton("##ai", Icon::Sparkle, rightTab == Tab_AI, bs, "AI assistant (Ctrl+I)")) rightTab = rightTab == Tab_AI ? Tab_Design : Tab_AI;
     ImGui::SameLine(0, U(4));
+    if (IconButton("##timeline", Icon::Timeline, timelineOpen, bs, "Timeline (Alt+T)")) timelineOpen = !timelineOpen;
+    ImGui::SameLine(0, U(4));
     if (IconButton("##play", Icon::Play, preview, bs, "Preview (Ctrl+Enter)")) preview = !preview;
     ImGui::End();
     ImGui::PopStyleColor(2);
@@ -1237,40 +1282,83 @@ void App::DrawToolbar()
 
 void App::DrawExportDialog()
 {
-    if (showExport) { ImGui::OpenPopup("Export ImGui project"); showExport = false; lastExport = ExportResult(); }
+    if (showExport) { ImGui::OpenPopup("Export"); showExport = false; lastExport = ExportResult(); }
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(U(520), 0));
+    ImGui::SetNextWindowSize(ImVec2(U(560), 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(18), U(16)));
-    if (ImGui::BeginPopupModal("Export ImGui project", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginPopupModal("Export", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        float W = U(484);
-        ui::Label("Output folder");
-        ui::TextField("##dir", &exportOpt.outDir, W - U(90), "C:\\path\\to\\export");
-        ImGui::SameLine();
-        if (ImGui::Button("Browse...", ImVec2(U(84), 0)))
+        float W = U(524);
+        const char* targets[] = { "Dear ImGui (C++)", "Minecraft Java" };
+        if (ui::Segmented("##target", &exportTarget, targets, 2, W)) lastExport = ExportResult();
+        ImGui::Dummy(ImVec2(0, U(4)));
+        float lx = U(160);
+        if (exportTarget == 0)
         {
-            std::string d = platform::PickFolderDialog("Export folder");
-            if (!d.empty()) exportOpt.outDir = d;
+            ui::Label("Output folder");
+            ui::TextField("##dir", &exportOpt.outDir, W - U(90), "C:\\path\\to\\export");
+            ImGui::SameLine();
+            if (ImGui::Button("Browse...", ImVec2(U(84), 0)))
+            {
+                std::string d = platform::PickFolderDialog("Export folder");
+                if (!d.empty()) exportOpt.outDir = d;
+            }
+            ui::Label("C++ namespace");
+            ImGui::SameLine(lx);
+            ui::TextField("##ns", &exportOpt.ns, W - lx);
+            ui::Label("File name");
+            ImGui::SameLine(lx);
+            ui::TextField("##base", &exportOpt.fileBase, W - lx);
+            ui::Label("Icon PNG scale");
+            ImGui::SameLine(lx);
+            ImGui::SetNextItemWidth(W - lx);
+            ImGui::SliderFloat("##iconscale", &exportOpt.iconScale, 1.0f, 4.0f, "%.0fx");
+            exportOpt.iconScale = std::round(exportOpt.iconScale);
+            ui::Check("Embed fonts into the binary", &exportOpt.embedFonts);
+            ui::Check("Write example host (Win32 + DirectX 11)", &exportOpt.writeExample);
         }
-        ui::Label("C++ namespace");
-        ImGui::SameLine(U(150));
-        ui::TextField("##ns", &exportOpt.ns, W - U(150));
-        ui::Label("File name");
-        ImGui::SameLine(U(150));
-        ui::TextField("##base", &exportOpt.fileBase, W - U(150));
-        ui::Label("Icon PNG scale");
-        ImGui::SameLine(U(150));
-        ImGui::SetNextItemWidth(W - U(150));
-        ImGui::SliderFloat("##iconscale", &exportOpt.iconScale, 1.0f, 4.0f, "%.0fx");
-        exportOpt.iconScale = std::round(exportOpt.iconScale);
-        ui::Check("Embed fonts into the binary", &exportOpt.embedFonts);
-        ui::Check("Write example host (Win32 + DirectX 11)", &exportOpt.writeExample);
+        else
+        {
+            ui::Label("Output folder");
+            ui::TextField("##jdir", &javaOpt.outDir, W - U(90), "C:\\path\\to\\mymod");
+            ImGui::SameLine();
+            if (ImGui::Button("Browse...##j", ImVec2(U(84), 0)))
+            {
+                std::string d = platform::PickFolderDialog("Mod folder");
+                if (!d.empty()) javaOpt.outDir = d;
+            }
+            ui::Label("Loader");
+            ImGui::SameLine(lx);
+            const char* loaders[] = { "Fabric 1.21.1", "NeoForge 1.21.1" };
+            ui::Segmented("##loader", &javaOpt.loader, loaders, 2, W - lx);
+            ui::Label("Mod id");
+            ImGui::SameLine(lx);
+            ui::TextField("##modid", &javaOpt.modId, W - lx, "examplemod");
+            ui::Label("Java package");
+            ImGui::SameLine(lx);
+            ui::TextField("##pkg", &javaOpt.package, W - lx, "com.example.examplemod.client.gui");
+            ui::Label("Class name");
+            ImGui::SameLine(lx);
+            ui::TextField("##cls", &javaOpt.className, W - lx, "from the frame name");
+            ui::Label("Texture scale");
+            ImGui::SameLine(lx);
+            ImGui::SetNextItemWidth(W - lx);
+            ImGui::SliderFloat("##jscale", &javaOpt.textureScale, 1.0f, 4.0f, "%.0fx");
+            javaOpt.textureScale = std::round(javaOpt.textureScale);
+            ui::Check("Ship design fonts as TTF font providers", &javaOpt.ttfFonts);
+            ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + W);
+            ImGui::TextUnformatted("Writes src/main/java (Screen + menu + Fimgui runtime) and src/main/resources/assets/<mod id> (baked layers, fonts). Copy src/ into your mod.");
+            ImGui::PopTextWrapPos();
+            ImGui::PopStyleColor();
+        }
         ImGui::Dummy(ImVec2(0, U(6)));
 
         int frames = 0;
         for (auto& r : doc.roots) if (r->type == NodeType::Frame && r->visible) frames++;
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
-        ImGui::Text("%d top-level frame(s) -> ImGui windows, %d asset(s), %d state variable(s)", frames, (int)doc.assets.size(), (int)CollectVars(doc).size());
+        if (exportTarget == 0) ImGui::Text("%d top-level frame(s) -> ImGui windows, %d asset(s), %d state variable(s)", frames, (int)doc.assets.size(), (int)CollectVars(doc).size());
+        else ImGui::Text("First top-level frame -> Minecraft Screen, %d state variable(s)", (int)CollectVars(doc).size());
         ImGui::PopStyleColor();
 
         if (!lastExport.message.empty())
@@ -1286,20 +1374,21 @@ void App::DrawExportDialog()
             }
         }
         ImGui::Dummy(ImVec2(0, U(6)));
+        std::string& dir = exportTarget == 0 ? exportOpt.outDir : javaOpt.outDir;
         if (ImGui::Button("Close", ImVec2(U(100), 0))) ImGui::CloseCurrentPopup();
         ImGui::SameLine();
-        if (lastExport.ok && ImGui::Button("Open folder", ImVec2(U(110), 0))) platform::OpenInExplorer(exportOpt.outDir);
+        if (lastExport.ok && ImGui::Button("Open folder", ImVec2(U(110), 0))) platform::OpenInExplorer(dir);
         ImGui::SameLine(W - U(120) + ImGui::GetStyle().WindowPadding.x);
         if (ui::PrimaryButton("Export", ImVec2(U(120), 0)))
         {
-            if (exportOpt.outDir.empty())
+            if (dir.empty())
             {
                 std::string d = platform::PickFolderDialog("Export folder");
-                if (!d.empty()) exportOpt.outDir = d;
+                if (!d.empty()) dir = d;
             }
-            if (!exportOpt.outDir.empty())
+            if (!dir.empty())
             {
-                lastExport = ExportProject(doc, exportOpt, platform::ExeDir() + "/runtime");
+                lastExport = exportTarget == 0 ? ExportProject(doc, exportOpt, platform::ExeDir() + "/runtime") : RunJavaExport();
                 MarkDirty();
                 SaveSettings();
             }
@@ -1488,7 +1577,8 @@ void App::HandleShortcuts()
     if (P(ImGuiKey_O)) tool = Tool::Ellipse;
     if (P(ImGuiKey_L)) tool = Tool::Line;
     if (P(ImGuiKey_T)) tool = Tool::Text;
-    if (P(ImGuiKey_Delete) || P(ImGuiKey_Backspace)) DeleteSelection();
+    if (alt && !ctrl && P(ImGuiKey_T)) { timelineOpen = !timelineOpen; return; }
+    if (P(ImGuiKey_Delete) || P(ImGuiKey_Backspace)) { if (timelineOpen && !keySel.empty()) DeleteSelectedKeys(); else DeleteSelection(); }
     if (P(ImGuiKey_Escape))
     {
         if (tool != Tool::Move) tool = Tool::Move;

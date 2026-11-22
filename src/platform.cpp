@@ -197,6 +197,17 @@ namespace platform
     void ToggleMaximizeWindow() { ShowWindow(g_hwnd, IsZoomed(g_hwnd) ? SW_RESTORE : SW_MAXIMIZE); }
     bool IsWindowMaximized() { return IsZoomed(g_hwnd) != 0; }
     void CloseMainWindow() { PostMessageW(g_hwnd, WM_CLOSE, 0, 0); }
+    bool ScreenPixel(float x, float y, float rgb[3])
+    {
+        POINT pt = { (LONG)x, (LONG)y };
+        ClientToScreen(g_hwnd, &pt);
+        HDC dc = GetDC(nullptr);
+        COLORREF c = GetPixel(dc, pt.x, pt.y);
+        ReleaseDC(nullptr, dc);
+        if (c == CLR_INVALID) return false;
+        rgb[0] = GetRValue(c) / 255.0f; rgb[1] = GetGValue(c) / 255.0f; rgb[2] = GetBValue(c) / 255.0f;
+        return true;
+    }
     void StartWindowDrag()
     {
         // Hand the drag to Windows (Aero snap, moving between monitors).

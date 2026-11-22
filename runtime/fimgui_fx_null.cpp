@@ -1,5 +1,5 @@
 // fimgui_fx_null.cpp - renderer-agnostic fallback for fimgui_fx.h (no blur, no blend modes, no video).
-// Part of Fimgui - non-commercial use only, see LICENSE-FIMGUI.txt (https://github.com/dis3j/FImgui).
+// Part of Fimgui (c) 2026 Philip, https://github.com/dis3j/FImgui. Free to use in your projects, including commercial ones; see LICENSE-FIMGUI.txt.
 #include "fimgui_fx.h"
 #include "fimgui_runtime.h"
 
@@ -22,6 +22,8 @@ namespace fim
                 StrokeRect(dl, a, b, r, IM_COL32(255, 255, 255, (int)(90 * p.highlight)), 1.0f, 0, alpha);
         }
 
+        void BeginBlend(ImDrawList*, int) {}
+        void EndBlend(ImDrawList*, int) {}
         void DrawTexture(ImDrawList* dl, ImTextureRef tex, ImVec2 a, ImVec2 b, const float r[4], ImVec2 uv0, ImVec2 uv1, ImU32 tint, int, bool, float alpha)
         {
             DrawImage(dl, tex, a, b, r, uv0, uv1, tint, alpha);

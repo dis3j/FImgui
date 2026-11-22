@@ -55,7 +55,7 @@ int main(int, char**)
     ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"FimguiExample", nullptr };
     RegisterClassExW(&wc);
-    HWND hwnd = CreateWindowW(wc.lpszClassName, L"menu - Fimgui export", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
+    HWND hwnd = CreateWindowW(wc.lpszClassName, L"project_a - Fimgui export", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
     DXGI_SWAP_CHAIN_DESC sd = {};
     sd.BufferCount = 2;
@@ -80,8 +80,8 @@ int main(int, char**)
     // GPU effects (background blur, glass, blend modes, video).
     fim::fx::InitDX11(g_device, g_context);
     // Fonts are loaded from ../fonts and videos from ../videos relative to the working directory.
-    menu::Init(CreateTexture, "../fonts", "..");
-    menu::State state;
+    project_a::Init(CreateTexture, "../fonts", "..");
+    project_a::State state;
 
     bool done = false;
     while (!done)
@@ -105,7 +105,7 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        menu::Render(state);
+        project_a::Render(state);
 
         ImGui::Render();
         const float clear[4] = { 0.08f, 0.08f, 0.09f, 1.0f };
