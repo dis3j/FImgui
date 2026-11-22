@@ -1,0 +1,661 @@
+{
+ "assets": {
+  "a_Next_icon": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='#FFFFFF' d='M16 5h2v14h-2zM4 5v14l10.5-7z'/></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Next_icon",
+   "width": 24
+  },
+  "a_Note": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='#FFFFFF' d='M9 18.5a3 3 0 1 1-2-2.83V5.5l11-2v11.5a3 3 0 1 1-2-2.83V7.2l-7 1.27z'/></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Note",
+   "width": 24
+  },
+  "a_Pause_icon": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='#FFFFFF' d='M6 4h4v16H6zM14 4h4v16h-4z'/></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Pause_icon",
+   "width": 24
+  },
+  "a_Play_icon": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='#FFFFFF' d='M7 4v16l13-8z'/></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Play_icon",
+   "width": 24
+  },
+  "a_Prev_icon": {
+   "data": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='#FFFFFF' d='M6 5h2v14H6zM20 5v14L9.5 12z'/></svg>",
+   "height": 24,
+   "kind": "svg",
+   "name": "Prev_icon",
+   "width": 24
+  }
+ },
+ "canvasColor": "#1E1E1E",
+ "format": "fimgui",
+ "name": "Untitled",
+ "nextId": 6,
+ "nodes": [
+  {
+   "animation": {
+    "delay": 0.0,
+    "distance": 16.0,
+    "duration": 0.4000000059604645,
+    "easing": "ease-out",
+    "intensity": 0.05000000074505806,
+    "preset": "fade",
+    "scale": 0.8999999761581421,
+    "trigger": "appear"
+   },
+   "children": [
+    {
+     "alignCross": "center",
+     "alignMain": "center",
+     "animation": {
+      "delay": 0.0,
+      "distance": 6.0,
+      "duration": 3.200000047683716,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "float",
+      "scale": 0.8999999761581421,
+      "trigger": "loop"
+     },
+     "children": [
+      {
+       "asset": "a_Note",
+       "fill": "#FFFFFFE6",
+       "h": 72.0,
+       "id": "art_icon",
+       "name": "Note",
+       "recolor": true,
+       "type": "vector",
+       "w": 72.0,
+       "x": 74.0,
+       "y": 74.0
+      }
+     ],
+     "fill": {
+      "angle": 45.0,
+      "from": "#FF5E9C",
+      "to": "#7A5CFF",
+      "type": "linear"
+     },
+     "gap": 8.0,
+     "h": 220.0,
+     "id": "art",
+     "layout": "horizontal",
+     "name": "Cover",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "radius": 28.0,
+     "shadow": {
+      "blur": 44.0,
+      "color": "#7A5CFF77",
+      "spread": 0.0,
+      "type": "drop",
+      "x": 0.0,
+      "y": 18.0
+     },
+     "type": "frame",
+     "w": 220.0,
+     "x": 80.0,
+     "y": 40.0
+    },
+    {
+     "align": "center",
+     "animation": {
+      "delay": 0.10000000149011612,
+      "distance": 10.0,
+      "duration": 0.44999998807907104,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "slide-up",
+      "scale": 0.8999999761581421,
+      "trigger": "appear"
+     },
+     "fill": "#FFFFFF",
+     "font": "Inter",
+     "fontSize": 21.0,
+     "fontStyle": "SemiBold",
+     "h": 26.0,
+     "id": "song",
+     "name": "Title",
+     "text": "Midnight Drive",
+     "textSizing": "fixed",
+     "type": "text",
+     "w": 380.0,
+     "x": 0.0,
+     "y": 286.0
+    },
+    {
+     "align": "center",
+     "animation": {
+      "delay": 0.1599999964237213,
+      "distance": 10.0,
+      "duration": 0.44999998807907104,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "slide-up",
+      "scale": 0.8999999761581421,
+      "trigger": "appear"
+     },
+     "fill": "#9C94B8",
+     "font": "Inter",
+     "fontSize": 13.0,
+     "h": 18.0,
+     "id": "artist",
+     "name": "Artist",
+     "text": "Neon Coast",
+     "textSizing": "fixed",
+     "type": "text",
+     "w": 380.0,
+     "x": 0.0,
+     "y": 316.0
+    },
+    {
+     "children": [
+      {
+       "animation": {
+        "delay": 0.0,
+        "distance": 16.0,
+        "duration": 0.8999999761581421,
+        "easing": "ease-out",
+        "intensity": 0.05000000074505806,
+        "keyframes": {
+         "y": [
+          {
+           "ease": "ease-in-out",
+           "t": 0.0,
+           "v": 14.0
+          },
+          {
+           "ease": "ease-in-out",
+           "t": 0.44999998807907104,
+           "v": 2.0
+          },
+          {
+           "ease": "ease-out",
+           "t": 0.8999999761581421,
+           "v": 14.0
+          }
+         ]
+        },
+        "preset": "keyframes",
+        "scale": 0.8999999761581421,
+        "trigger": "loop"
+       },
+       "fill": "#FF5E9C",
+       "h": 24.0,
+       "id": "eq1",
+       "name": "Bar 1",
+       "radius": 4.0,
+       "type": "rect",
+       "w": 8.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "animation": {
+        "delay": 0.0,
+        "distance": 16.0,
+        "duration": 0.699999988079071,
+        "easing": "ease-out",
+        "intensity": 0.05000000074505806,
+        "keyframes": {
+         "y": [
+          {
+           "ease": "ease-in-out",
+           "t": 0.0,
+           "v": 4.0
+          },
+          {
+           "ease": "ease-in-out",
+           "t": 0.3499999940395355,
+           "v": 16.0
+          },
+          {
+           "ease": "ease-out",
+           "t": 0.699999988079071,
+           "v": 4.0
+          }
+         ]
+        },
+        "preset": "keyframes",
+        "scale": 0.8999999761581421,
+        "trigger": "loop"
+       },
+       "fill": "#D95CD0",
+       "h": 24.0,
+       "id": "eq2",
+       "name": "Bar 2",
+       "radius": 4.0,
+       "type": "rect",
+       "w": 8.0,
+       "x": 18.0,
+       "y": 0.0
+      },
+      {
+       "animation": {
+        "delay": 0.0,
+        "distance": 16.0,
+        "duration": 1.100000023841858,
+        "easing": "ease-out",
+        "intensity": 0.05000000074505806,
+        "keyframes": {
+         "y": [
+          {
+           "ease": "ease-in-out",
+           "t": 0.0,
+           "v": 10.0
+          },
+          {
+           "ease": "ease-in-out",
+           "t": 0.30000001192092896,
+           "v": 0.0
+          },
+          {
+           "ease": "ease-in-out",
+           "t": 0.699999988079071,
+           "v": 12.0
+          },
+          {
+           "ease": "ease-out",
+           "t": 1.100000023841858,
+           "v": 10.0
+          }
+         ]
+        },
+        "preset": "keyframes",
+        "scale": 0.8999999761581421,
+        "trigger": "loop"
+       },
+       "fill": "#B35CF0",
+       "h": 24.0,
+       "id": "eq3",
+       "name": "Bar 3",
+       "radius": 4.0,
+       "type": "rect",
+       "w": 8.0,
+       "x": 36.0,
+       "y": 0.0
+      },
+      {
+       "animation": {
+        "delay": 0.0,
+        "distance": 16.0,
+        "duration": 0.800000011920929,
+        "easing": "ease-out",
+        "intensity": 0.05000000074505806,
+        "keyframes": {
+         "y": [
+          {
+           "ease": "ease-in-out",
+           "t": 0.0,
+           "v": 16.0
+          },
+          {
+           "ease": "ease-in-out",
+           "t": 0.4000000059604645,
+           "v": 6.0
+          },
+          {
+           "ease": "ease-out",
+           "t": 0.800000011920929,
+           "v": 16.0
+          }
+         ]
+        },
+        "preset": "keyframes",
+        "scale": 0.8999999761581421,
+        "trigger": "loop"
+       },
+       "fill": "#925CFF",
+       "h": 24.0,
+       "id": "eq4",
+       "name": "Bar 4",
+       "radius": 4.0,
+       "type": "rect",
+       "w": 8.0,
+       "x": 54.0,
+       "y": 0.0
+      },
+      {
+       "animation": {
+        "delay": 0.0,
+        "distance": 16.0,
+        "duration": 1.0,
+        "easing": "ease-out",
+        "intensity": 0.05000000074505806,
+        "keyframes": {
+         "y": [
+          {
+           "ease": "ease-in-out",
+           "t": 0.0,
+           "v": 6.0
+          },
+          {
+           "ease": "ease-in-out",
+           "t": 0.5,
+           "v": 15.0
+          },
+          {
+           "ease": "ease-out",
+           "t": 1.0,
+           "v": 6.0
+          }
+         ]
+        },
+        "preset": "keyframes",
+        "scale": 0.8999999761581421,
+        "trigger": "loop"
+       },
+       "fill": "#7A5CFF",
+       "h": 24.0,
+       "id": "eq5",
+       "name": "Bar 5",
+       "radius": 4.0,
+       "type": "rect",
+       "w": 8.0,
+       "x": 72.0,
+       "y": 0.0
+      }
+     ],
+     "fill": "none",
+     "h": 24.0,
+     "id": "eq",
+     "name": "Equalizer",
+     "type": "frame",
+     "w": 80.0,
+     "x": 150.0,
+     "y": 350.0
+    },
+    {
+     "children": [
+      {
+       "fill": {
+        "angle": 0.0,
+        "from": "#FF5E9C",
+        "to": "#7A5CFF",
+        "type": "linear"
+       },
+       "h": 6.0,
+       "id": "progress_fill",
+       "name": "Fill",
+       "radius": 3.0,
+       "sliderPart": "fill",
+       "type": "rect",
+       "w": 100.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "h": 14.0,
+       "id": "progress_knob",
+       "name": "Knob",
+       "sliderPart": "knob",
+       "type": "ellipse",
+       "w": 14.0,
+       "x": 0.0,
+       "y": -4.0
+      }
+     ],
+     "clip": false,
+     "fill": "#FFFFFF1A",
+     "h": 6.0,
+     "id": "progress",
+     "max": 225.0,
+     "min": 0.0,
+     "name": "Progress",
+     "radius": 3.0,
+     "role": "slider",
+     "type": "frame",
+     "value": 72.0,
+     "var": "position",
+     "w": 300.0,
+     "x": 40.0,
+     "y": 400.0
+    },
+    {
+     "fill": "#8A84A0",
+     "font": "Inter",
+     "fontSize": 11.0,
+     "h": 14.0,
+     "id": "t_now",
+     "name": "Elapsed",
+     "text": "{position:%.0f} s",
+     "textSizing": "auto-width",
+     "type": "text",
+     "w": 19.0,
+     "x": 40.0,
+     "y": 414.0
+    },
+    {
+     "align": "right",
+     "fill": "#8A84A0",
+     "font": "Inter",
+     "fontSize": 11.0,
+     "h": 14.0,
+     "id": "t_total",
+     "name": "Total",
+     "text": "3:45",
+     "textSizing": "fixed",
+     "type": "text",
+     "w": 60.0,
+     "x": 280.0,
+     "y": 414.0
+    },
+    {
+     "alignCross": "center",
+     "alignMain": "space-between",
+     "children": [
+      {
+       "activeColor": "#FFFFFF24",
+       "alignCross": "center",
+       "alignMain": "center",
+       "children": [
+        {
+         "asset": "a_Prev_icon",
+         "fill": "#D8D2EE",
+         "h": 20.0,
+         "id": "btn_prev_i",
+         "name": "Prev icon",
+         "recolor": true,
+         "type": "vector",
+         "w": 20.0,
+         "x": 10.0,
+         "y": 10.0
+        }
+       ],
+       "fill": "#FFFFFF00",
+       "gap": 8.0,
+       "h": 40.0,
+       "hoverColor": "#FFFFFF14",
+       "id": "btn_prev",
+       "layout": "horizontal",
+       "name": "Previous",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "radius": 20.0,
+       "role": "button",
+       "type": "frame",
+       "w": 40.0,
+       "x": 0.0,
+       "y": 8.0
+      },
+      {
+       "activeColor": "#FFFFFF",
+       "alignCross": "center",
+       "alignMain": "center",
+       "animation": {
+        "delay": 0.0,
+        "distance": 16.0,
+        "duration": 0.20000000298023224,
+        "easing": "ease-out",
+        "intensity": 0.07000000029802322,
+        "preset": "grow",
+        "scale": 0.8999999761581421,
+        "trigger": "hover"
+       },
+       "children": [
+        {
+         "asset": "a_Pause_icon",
+         "fill": "#1A1230",
+         "h": 22.0,
+         "id": "btn_play_pause",
+         "name": "Pause icon",
+         "recolor": true,
+         "showIf": {
+          "not": false,
+          "value": 1.0,
+          "var": "playing"
+         },
+         "type": "vector",
+         "w": 22.0,
+         "x": 2.0,
+         "y": 17.0
+        },
+        {
+         "asset": "a_Play_icon",
+         "fill": "#1A1230",
+         "h": 22.0,
+         "id": "btn_play_play",
+         "name": "Play icon",
+         "recolor": true,
+         "showIf": {
+          "not": true,
+          "value": 1.0,
+          "var": "playing"
+         },
+         "type": "vector",
+         "w": 22.0,
+         "x": 32.0,
+         "y": 17.0
+        }
+       ],
+       "gap": 8.0,
+       "h": 56.0,
+       "hoverColor": "#F1EEFF",
+       "id": "btn_play",
+       "layout": "horizontal",
+       "name": "Play",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "radius": 28.0,
+       "role": "checkbox",
+       "shadow": {
+        "blur": 24.0,
+        "color": "#FF5E9C55",
+        "spread": 0.0,
+        "type": "drop",
+        "x": 0.0,
+        "y": 10.0
+       },
+       "type": "frame",
+       "value": 1.0,
+       "var": "playing",
+       "w": 56.0,
+       "x": 72.0,
+       "y": 0.0
+      },
+      {
+       "activeColor": "#FFFFFF24",
+       "alignCross": "center",
+       "alignMain": "center",
+       "children": [
+        {
+         "asset": "a_Next_icon",
+         "fill": "#D8D2EE",
+         "h": 20.0,
+         "id": "btn_next_i",
+         "name": "Next icon",
+         "recolor": true,
+         "type": "vector",
+         "w": 20.0,
+         "x": 10.0,
+         "y": 10.0
+        }
+       ],
+       "fill": "#FFFFFF00",
+       "gap": 8.0,
+       "h": 40.0,
+       "hoverColor": "#FFFFFF14",
+       "id": "btn_next",
+       "layout": "horizontal",
+       "name": "Next",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "radius": 20.0,
+       "role": "button",
+       "type": "frame",
+       "w": 40.0,
+       "x": 160.0,
+       "y": 8.0
+      }
+     ],
+     "fill": "none",
+     "gap": 8.0,
+     "h": 56.0,
+     "id": "controls",
+     "layout": "horizontal",
+     "name": "Controls",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "type": "frame",
+     "w": 200.0,
+     "x": 90.0,
+     "y": 440.0
+    }
+   ],
+   "fill": {
+    "angle": 90.0,
+    "from": "#1D1133",
+    "to": "#0A0A13",
+    "type": "linear"
+   },
+   "h": 520.0,
+   "id": "player",
+   "name": "Player",
+   "radius": 28.0,
+   "shadow": {
+    "blur": 48.0,
+    "color": "#00000099",
+    "spread": 0.0,
+    "type": "drop",
+    "x": 0.0,
+    "y": 24.0
+   },
+   "stroke": "#FFFFFF10",
+   "type": "frame",
+   "w": 380.0,
+   "x": 0.0,
+   "y": 0.0
+  }
+ ],
+ "version": 1
+}

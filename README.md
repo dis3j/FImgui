@@ -6,6 +6,10 @@
 
 ![](docs/screenshot.png)
 
+Как это выглядит в работе — меню собирается из потока операций, как при ответе ИИ, а в конце включается превью с анимациями:
+
+![](docs/timelapse_nexus.gif)
+
 > Fimgui — бесплатный инструмент: делайте в нём любые проекты, в том числе на продажу. **Продавать сам Fimgui нельзя** — см. [LICENSE](LICENSE). Проект не связан с Figma, Inc.; Figma — товарный знак Figma, Inc.
 
 ## Сборка
@@ -279,10 +283,18 @@ Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--p
            [--tab 0..4] [--import media x y] [--export dir] [--no-embed-fonts] [--screenshot out.png --frames N]
            [--workspace dir] [--project Name] [--save] [--home] [--ui-scale 1.25] [--check-updates]
            [--export-java dir [fabric|neoforge]] [--timeline seconds]
+           [--ops-stream ops.jsonl [framesPerOp]] [--record dir [every] [tail]]
            [--ai "запрос" --ai-base URL --ai-key KEY] [--mcp-port N]
 ```
 
 С флагами `--...` проверка обновлений при запуске не выполняется (кроме `--check-updates`).
+
+Таймлапс: `--ops-stream ops.jsonl [кадров на операцию]` применяет операции по одной, как при потоковом ответе ИИ, а `--record папка [каждый N-й кадр] [кадров после конца]` сохраняет кадры; после последней операции включается превью. GIF собирает `examples/scripts/make_timelapse.py`:
+
+```
+Fimgui.exe --ops-stream examples\login_demo.jsonl 8 --record frames 3 180
+python examples\scripts\make_timelapse.py frames docs\timelapse_login.gif 800
+```
 
 Файлы `examples/demo_menu.jsonl` и `examples/glass_demo.jsonl` — примеры потока операций в том формате, в котором отвечает модель. `examples/glass_demo.fimgui` — витрина стекла, blur, зерна и анимаций.
 

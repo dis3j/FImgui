@@ -1,0 +1,442 @@
+{
+ "assets": {},
+ "canvasColor": "#1E1E1E",
+ "format": "fimgui",
+ "name": "Untitled",
+ "nextId": 1,
+ "nodes": [
+  {
+   "animation": {
+    "delay": 0.0,
+    "distance": 16.0,
+    "duration": 0.5,
+    "easing": "back-out",
+    "intensity": 0.05000000074505806,
+    "preset": "pop",
+    "scale": 0.9399999976158142,
+    "trigger": "appear"
+   },
+   "children": [
+    {
+     "alignCross": "center",
+     "alignMain": "center",
+     "animation": {
+      "delay": 0.0,
+      "distance": 16.0,
+      "duration": 1.7999999523162842,
+      "easing": "ease-out",
+      "intensity": 0.05999999865889549,
+      "preset": "pulse",
+      "scale": 0.8999999761581421,
+      "trigger": "loop"
+     },
+     "children": [
+      {
+       "fill": "#FFFFFF",
+       "font": "Inter",
+       "fontSize": 26.0,
+       "fontStyle": "Bold",
+       "h": 32.0,
+       "id": "logo_t",
+       "name": "Letter",
+       "text": "F",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 13.0,
+       "x": 22.0,
+       "y": 12.0
+      }
+     ],
+     "fill": {
+      "angle": 45.0,
+      "from": "#6C5CFF",
+      "to": "#2FB5FF",
+      "type": "linear"
+     },
+     "gap": 8.0,
+     "h": 56.0,
+     "id": "logo",
+     "layout": "horizontal",
+     "name": "Logo",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "radius": 16.0,
+     "shadow": {
+      "blur": 24.0,
+      "color": "#6C5CFF66",
+      "spread": 0.0,
+      "type": "drop",
+      "x": 0.0,
+      "y": 10.0
+     },
+     "type": "frame",
+     "w": 56.0,
+     "x": 182.0,
+     "y": 48.0
+    },
+    {
+     "align": "center",
+     "animation": {
+      "delay": 0.10000000149011612,
+      "distance": 12.0,
+      "duration": 0.44999998807907104,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "slide-up",
+      "scale": 0.8999999761581421,
+      "trigger": "appear"
+     },
+     "fill": "#FFFFFF",
+     "font": "Inter",
+     "fontSize": 24.0,
+     "fontStyle": "SemiBold",
+     "h": 30.0,
+     "id": "title",
+     "name": "Title",
+     "text": "Welcome back",
+     "textSizing": "fixed",
+     "type": "text",
+     "w": 420.0,
+     "x": 0.0,
+     "y": 124.0
+    },
+    {
+     "align": "center",
+     "animation": {
+      "delay": 0.1599999964237213,
+      "distance": 12.0,
+      "duration": 0.44999998807907104,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "slide-up",
+      "scale": 0.8999999761581421,
+      "trigger": "appear"
+     },
+     "fill": "#8A8AA0",
+     "font": "Inter",
+     "fontSize": 13.0,
+     "h": 18.0,
+     "id": "subtitle",
+     "name": "Subtitle",
+     "text": "Sign in to continue",
+     "textSizing": "fixed",
+     "type": "text",
+     "w": 420.0,
+     "x": 0.0,
+     "y": 160.0
+    },
+    {
+     "animation": {
+      "delay": 0.20000000298023224,
+      "distance": 10.0,
+      "duration": 0.4000000059604645,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "slide-up",
+      "scale": 0.8999999761581421,
+      "stagger": 0.05999999865889549,
+      "trigger": "appear"
+     },
+     "children": [
+      {
+       "fill": "#9A9AB0",
+       "font": "Inter",
+       "fontSize": 12.0,
+       "fontStyle": "Medium",
+       "h": 15.0,
+       "id": "lbl_email",
+       "name": "Email label",
+       "text": "Email",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 26.0,
+       "x": 0.0,
+       "y": 0.0
+      },
+      {
+       "activeColor": "#25253A",
+       "children": [
+        {
+         "fill": "#5E5E74",
+         "font": "Inter",
+         "fontSize": 13.0,
+         "h": 16.0,
+         "id": "in_email_ph",
+         "name": "Placeholder",
+         "text": "you@example.com",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 98.0,
+         "x": 14.0,
+         "y": 14.0
+        }
+       ],
+       "fill": "#1C1C2A",
+       "fillW": true,
+       "h": 44.0,
+       "hoverColor": "#212131",
+       "id": "in_email",
+       "name": "Email",
+       "radius": 10.0,
+       "role": "input",
+       "stroke": "#FFFFFF14",
+       "type": "frame",
+       "var": "email",
+       "w": 340.0,
+       "x": 0.0,
+       "y": 25.0
+      },
+      {
+       "fill": "#9A9AB0",
+       "font": "Inter",
+       "fontSize": 12.0,
+       "fontStyle": "Medium",
+       "h": 15.0,
+       "id": "lbl_pass",
+       "name": "Password label",
+       "text": "Password",
+       "textSizing": "auto-width",
+       "type": "text",
+       "w": 47.0,
+       "x": 0.0,
+       "y": 79.0
+      },
+      {
+       "activeColor": "#25253A",
+       "children": [
+        {
+         "fill": "#5E5E74",
+         "font": "Inter",
+         "fontSize": 13.0,
+         "h": 16.0,
+         "id": "in_pass_ph",
+         "name": "Placeholder",
+         "text": "Your password",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 77.0,
+         "x": 14.0,
+         "y": 14.0
+        }
+       ],
+       "fill": "#1C1C2A",
+       "fillW": true,
+       "h": 44.0,
+       "hoverColor": "#212131",
+       "id": "in_pass",
+       "name": "Password",
+       "radius": 10.0,
+       "role": "input",
+       "stroke": "#FFFFFF14",
+       "type": "frame",
+       "var": "password",
+       "w": 340.0,
+       "x": 0.0,
+       "y": 104.0
+      },
+      {
+       "alignCross": "center",
+       "children": [
+        {
+         "activeColor": "#6C5CFF",
+         "children": [
+          {
+           "h": 8.0,
+           "id": "cb_remember_dot",
+           "name": "Check",
+           "radius": 2.0,
+           "showIf": {
+            "not": false,
+            "value": 1.0,
+            "var": "remember"
+           },
+           "type": "rect",
+           "w": 8.0,
+           "x": 5.0,
+           "y": 5.0
+          }
+         ],
+         "fill": "#24243A",
+         "h": 18.0,
+         "hoverColor": "#2C2C46",
+         "id": "cb_remember",
+         "name": "Checkbox",
+         "radius": 5.0,
+         "role": "checkbox",
+         "stroke": "#FFFFFF1F",
+         "type": "frame",
+         "value": 1.0,
+         "var": "remember",
+         "w": 18.0,
+         "x": 0.0,
+         "y": 5.0
+        },
+        {
+         "fill": "#B4B4C8",
+         "font": "Inter",
+         "fontSize": 13.0,
+         "h": 16.0,
+         "id": "lbl_remember",
+         "name": "Remember label",
+         "text": "Remember me",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 74.0,
+         "x": 28.0,
+         "y": 6.0
+        }
+       ],
+       "fill": "none",
+       "fillW": true,
+       "gap": 10.0,
+       "h": 28.0,
+       "id": "row_remember",
+       "layout": "horizontal",
+       "name": "Remember",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "type": "frame",
+       "w": 340.0,
+       "x": 0.0,
+       "y": 158.0
+      },
+      {
+       "activeColor": "#5646E0",
+       "alignCross": "center",
+       "alignMain": "center",
+       "animation": {
+        "delay": 0.0,
+        "distance": 2.0,
+        "duration": 0.18000000715255737,
+        "easing": "ease-out",
+        "intensity": 0.019999999552965164,
+        "preset": "lift",
+        "scale": 0.8999999761581421,
+        "trigger": "hover"
+       },
+       "children": [
+        {
+         "fill": "#FFFFFF",
+         "font": "Inter",
+         "fontSize": 15.0,
+         "fontStyle": "SemiBold",
+         "h": 18.0,
+         "id": "btn_signin_t",
+         "name": "Label",
+         "text": "Sign in",
+         "textSizing": "auto-width",
+         "type": "text",
+         "w": 41.0,
+         "x": 150.0,
+         "y": 14.0
+        }
+       ],
+       "fill": "#6C5CFF",
+       "fillW": true,
+       "gap": 8.0,
+       "h": 46.0,
+       "hoverColor": "#7D6EFF",
+       "id": "btn_signin",
+       "layout": "horizontal",
+       "name": "Sign in",
+       "padding": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "radius": 12.0,
+       "role": "button",
+       "shadow": {
+        "blur": 24.0,
+        "color": "#6C5CFF55",
+        "spread": 0.0,
+        "type": "drop",
+        "x": 0.0,
+        "y": 10.0
+       },
+       "type": "frame",
+       "w": 340.0,
+       "x": 0.0,
+       "y": 196.0
+      }
+     ],
+     "fill": "none",
+     "gap": 10.0,
+     "h": 242.0,
+     "hugH": true,
+     "id": "form",
+     "layout": "vertical",
+     "name": "Form",
+     "padding": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "type": "frame",
+     "w": 340.0,
+     "x": 40.0,
+     "y": 204.0
+    },
+    {
+     "align": "center",
+     "animation": {
+      "delay": 0.6000000238418579,
+      "distance": 16.0,
+      "duration": 0.6000000238418579,
+      "easing": "ease-out",
+      "intensity": 0.05000000074505806,
+      "preset": "fade",
+      "scale": 0.8999999761581421,
+      "trigger": "appear"
+     },
+     "fill": "#7A7A90",
+     "font": "Inter",
+     "fontSize": 12.0,
+     "h": 18.0,
+     "id": "footer",
+     "name": "Footer",
+     "text": "No account? Create one",
+     "textSizing": "fixed",
+     "type": "text",
+     "w": 420.0,
+     "x": 0.0,
+     "y": 516.0
+    }
+   ],
+   "fill": {
+    "angle": 90.0,
+    "from": "#171726",
+    "to": "#0D0D15",
+    "type": "linear"
+   },
+   "h": 560.0,
+   "id": "login",
+   "name": "Login",
+   "radius": 24.0,
+   "shadow": {
+    "blur": 48.0,
+    "color": "#00000099",
+    "spread": 0.0,
+    "type": "drop",
+    "x": 0.0,
+    "y": 24.0
+   },
+   "stroke": "#FFFFFF10",
+   "type": "frame",
+   "w": 420.0,
+   "x": 0.0,
+   "y": 0.0
+  }
+ ],
+ "version": 1
+}

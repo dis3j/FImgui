@@ -10,6 +10,8 @@
 | `glass_demo.fimgui` | «Aurora» — витрина эффектов: liquid glass, frosted-сайдбар (background blur), зерно (texture overlay), анимации появления, hover и петли |
 | `media_demo.fimgui` | Анимированный GIF как тайловая текстура с прокруткой |
 | `combo_demo.fimgui` | Combo (выбор кости) и Multi-combo (цели ESP, «Everything» / «Nothing») |
+| `login_demo.fimgui` | Экран входа: карточка «выпрыгивает», поля появляются по очереди (stagger), пульсирующий логотип, кнопка с hover-подъёмом, поля ввода и чекбокс «Remember me» |
+| `player_demo.fimgui` | Мини-плеер: плавающая обложка, эквалайзер на ключевых кадрах (5 полосок в цикле), слайдер прогресса с «{position} s», кнопка Play / Pause с ростом при наведении |
 | `keyframes_demo.fimgui` | Ключевые кадры: мяч прыгает по дуге в цикле (X, Y, Scale), заголовок выезжает и проявляется. Откройте таймлайн: Alt+T |
 
 Рядом лежат `*.jsonl` — те же дизайны в виде потока операций, в том формате, в котором отвечает ИИ (встроенный чат и MCP `apply_operations`):
@@ -17,6 +19,16 @@
 ```
 Fimgui.exe --ops examples\glass_demo.jsonl
 ```
+
+## Таймлапсы
+
+Как дизайн собирается из потока операций (так же его рисует ИИ), и что получается в превью:
+
+| Nexus | Вход | Плеер |
+|---|---|---|
+| ![](../docs/timelapse_nexus.gif) | ![](../docs/timelapse_login.gif) | ![](../docs/timelapse_player.gif) |
+
+Записаны флагами `--ops-stream` и `--record`, GIF собран `scripts/make_timelapse.py` (см. главный README, раздел «Командная строка»).
 
 ## Экспорт в Minecraft
 

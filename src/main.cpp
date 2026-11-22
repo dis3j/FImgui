@@ -9,6 +9,7 @@
 #include "../runtime/fimgui_fx.h"
 #include <d3d11.h>
 #include <algorithm>
+#include <sstream>
 #include <windowsx.h>
 #include <dwmapi.h>
 #include <shellapi.h>
@@ -221,6 +222,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     bool exportJava = false;
     struct Click { std::string id; int frame; float dy; };
     std::vector<Click> clicks;   // synthetic clicks for automated checks
+    // Timelapse: --ops-stream applies operations one by one (like a streamed AI answer), --record saves frames.
+    std::vector<json> streamOps;
+    int streamEvery = 4, streamStart = 20;
+    size_t streamPos = 0;
+    int streamEndFrame = -1;
+    std::string recordDir;
+    int recordEvery = 2, recordTail = 150, recordIndex = 0;
     int captureFrame = 45;
     {
         int argc = 0;
@@ -283,6 +291,30 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (a == "--workspace") { g_appInstance.workspace = next(); g_appInstance.persistSettings = false; }
             else if (a == "--home") forceHome = true;
             else if (a == "--check-updates") g_appInstance.CheckForUpdates();
+            else if (a == "--ops-stream")
+            {
+                std::string text;
+                if (platform::ReadText(next(), text))
+                {
+                    std::stringstream ss(text);
+                    std::string line;
+                    while (std::getline(ss, line))
+                    {
+                        json op = json::parse(line, nullptr, false);
+                        if (!op.is_discarded() && op.is_object()) streamOps.push_back(op);
+                    }
+                }
+                auto isNumber = [](const std::string& v) { char* e = nullptr; std::strtod(v.c_str(), &e); return !v.empty() && e && *e == 0; };
+                if (i + 1 < args.size() && isNumber(args[i + 1])) streamEvery = std::max(1, std::atoi(next().c_str()));
+            }
+            else if (a == "--record")
+            {
+                recordDir = next();
+                auto isNumber = [](const std::string& v) { char* e = nullptr; std::strtod(v.c_str(), &e); return !v.empty() && e && *e == 0; };
+                if (i + 1 < args.size() && isNumber(args[i + 1])) recordEvery = std::max(1, std::atoi(next().c_str()));
+                if (i + 1 < args.size() && isNumber(args[i + 1])) recordTail = std::max(0, std::atoi(next().c_str()));
+                CreateDirectoryW(platform::Widen(recordDir).c_str(), nullptr);
+            }
             else if (a == "--export-java")
             {
                 g_appInstance.javaOpt.outDir = next();
@@ -314,6 +346,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
                 g_appInstance.mcpEnabled = true;
                 g_appInstance.persistSettings = false;
                 g_appInstance.StartMcp();
+                // the default port may have been busy at startup; the override worked, so drop that error toast
+                if (g_appInstance.mcpError.empty()) g_appInstance.toast.clear();
             }
             else if (!a.empty() && a[0] != '-') g_appInstance.OpenDocument(a);
         }
@@ -351,6 +385,22 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             CreateRenderTarget();
         }
 
+        if (streamPos < streamOps.size() && frame >= streamStart && (frame - streamStart) % streamEvery == 0)
+        {
+            const json& op = streamOps[streamPos++];
+            std::string err;
+            g_appInstance.ApplyAiOp(op, &err);
+            g_appInstance.MarkDirty();
+            if (op.contains("node") && op["node"].is_object() && op["node"].contains("id") && op["node"]["id"].is_string())
+                g_appInstance.Select(op["node"]["id"].get<std::string>());
+            if (streamPos == 1) g_appInstance.deferred.push_back([] { g_appInstance.ZoomToFit(false); });
+            if (streamPos == streamOps.size())
+            {
+                // done: deselect and play the menu with its animations
+                streamEndFrame = frame;
+                g_appInstance.deferred.push_back([] { g_appInstance.selection.clear(); g_appInstance.vars = VarStore(); g_appInstance.ZoomToFit(false); g_appInstance.preview = true; g_appInstance.animClocks.clear(); });
+            }
+        }
         fonts::ProcessPending();
         gfx::NewFrame();
         ImGui_ImplDX11_NewFrame();
@@ -415,6 +465,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             if (screenshot.empty()) done = true;
         }
         if (!screenshot.empty() && frame == captureFrame) { CaptureBackbuffer(screenshot); done = true; }
+        if (!recordDir.empty() && frame >= streamStart - 2 && frame % recordEvery == 0)
+        {
+            char name[32];
+            snprintf(name, sizeof(name), "/frame_%05d.png", recordIndex++);
+            CaptureBackbuffer(recordDir + name);
+            if (streamEndFrame >= 0 && frame >= streamEndFrame + recordTail) done = true;
+        }
         HRESULT hr = g_swapChain->Present(1, 0);
         g_occluded = hr == DXGI_STATUS_OCCLUDED;
     }
