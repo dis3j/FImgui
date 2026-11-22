@@ -4,3 +4,4 @@ build_test/
 .vs/
 *.log
 build_dev/
+build_check/

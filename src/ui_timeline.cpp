@@ -202,6 +202,11 @@ void App::DrawTimeline()
                         for (auto& k : tr->keys) if (std::fabs(k.time - s.time) < kKeyEps) k.easing = sel;
             MarkDirty();
         }
+        ImGui::SameLine(0, U(8));
+        char del[32];
+        snprintf(del, sizeof(del), keySel.size() == 1 ? "Delete key" : "Delete %d keys", (int)keySel.size());
+        if (ImGui::Button(del)) DeleteSelectedKeys();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) ImGui::SetTooltip("Del / Backspace");
     }
     ImGui::EndGroup();
     // right side: zoom and close
@@ -391,7 +396,8 @@ void App::DrawTimeline()
 
     // ---- key interaction
     if (hk.valid) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-    if (rowsHovered && ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemActive() && io.MousePos.x > rx0 + L)
+    // (the row buttons under the keys become active on the same click, so only text editing blocks key picking)
+    if (rowsHovered && ImGui::IsMouseClicked(0) && !io.WantTextInput && io.MousePos.x > rx0 + L)
     {
         if (hk.valid)
         {
