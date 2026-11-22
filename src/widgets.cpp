@@ -4,6 +4,7 @@
 #include "fonts.h"
 #include "document.h"
 #include "imgui_internal.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
@@ -108,9 +109,9 @@ namespace ui
         return changed;
     }
 
-    static void Checker(ImDrawList* dl, ImVec2 a, ImVec2 b)
+    void Checker(ImDrawList* dl, ImVec2 a, ImVec2 b, float cell)
     {
-        float s = std::max(2.0f, (b.x - a.x) / 4);
+        float s = cell > 0 ? cell : std::max(2.0f, (b.x - a.x) / 4);
         dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 255));
         for (float y = a.y; y < b.y; y += s)
             for (float x = a.x; x < b.x; x += s)
@@ -120,6 +121,34 @@ namespace ui
 
     static std::vector<ImVec4> s_pageColors;
     void SetPageColors(const std::vector<ImVec4>& colors) { s_pageColors = colors; }
+    std::vector<ImVec4>& SavedColors() { static std::vector<ImVec4> s; return s; }
+    static SvOverlay s_svOverlay;
+    void SetSvOverlay(SvOverlay fn) { s_svOverlay = std::move(fn); }
+
+    // A grid of color swatches; returns the clicked index or -1.
+    static int SwatchGrid(const char* id, const std::vector<ImVec4>& colors, float w, int max = 64)
+    {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float sw = U(20), gap = U(6);
+        int perRow = std::max(1, (int)((w + gap) / (sw + gap)));
+        int hit = -1;
+        ImGui::PushID(id);
+        for (size_t i = 0; i < colors.size() && (int)i < max; i++)
+        {
+            if (i % perRow) ImGui::SameLine(0, gap);
+            ImGui::PushID((int)i);
+            ImVec2 q = ImGui::GetCursorScreenPos();
+            if (ImGui::InvisibleButton("##pc", ImVec2(sw, sw))) hit = (int)i;
+            const ImVec4& pc = colors[i];
+            if (pc.w < 1.0f) Checker(dl, q, ImVec2(q.x + sw, q.y + sw));
+            dl->AddRectFilled(q, ImVec2(q.x + sw, q.y + sw), ImGui::ColorConvertFloat4ToU32(pc), U(3));
+            dl->AddRect(q, ImVec2(q.x + sw, q.y + sw), ImGui::IsItemHovered() ? IM_COL32_WHITE : IM_COL32(255, 255, 255, 40), U(3));
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("#%s", ColorToHex(pc).c_str() + 1);
+            ImGui::PopID();
+        }
+        ImGui::PopID();
+        return hit;
+    }
 
     static void EyedropperGlyph(ImDrawList* dl, ImVec2 c, float s, ImU32 col)
     {
@@ -160,6 +189,13 @@ namespace ui
         ImU32 hueCol = ImGui::ColorConvertFloat4ToU32(ImVec4(hr, hg, hb, 1));
         dl->AddRectFilledMultiColor(p, ImVec2(p.x + w, p.y + sqH), IM_COL32_WHITE, hueCol, hueCol, IM_COL32_WHITE);
         dl->AddRectFilledMultiColor(p, ImVec2(p.x + w, p.y + sqH), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32_BLACK, IM_COL32_BLACK);
+        if (s_svOverlay)
+        {
+            dl->PushClipRect(p, ImVec2(p.x + w, p.y + sqH), true);
+            s_svOverlay(dl, p, ImVec2(p.x + w, p.y + sqH), h);
+            dl->PopClipRect();
+            s_svOverlay = nullptr;
+        }
         ImGui::InvisibleButton("##sv", ImVec2(w, sqH));
         if (ImGui::IsItemActive())
             apply(h, ImSaturate((io.MousePos.x - p.x) / w), 1 - ImSaturate((io.MousePos.y - p.y) / sqH));
@@ -279,21 +315,8 @@ namespace ui
             ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
             ImGui::TextUnformatted("On this page");
             ImGui::PopStyleColor();
-            float sw = U(20), gap = U(6);
-            int perRow = std::max(1, (int)((w + gap) / (sw + gap)));
-            for (size_t i = 0; i < s_pageColors.size() && i < 32; i++)
-            {
-                if (i % perRow) ImGui::SameLine(0, gap);
-                ImGui::PushID((int)i);
-                ImVec2 q = ImGui::GetCursorScreenPos();
-                if (ImGui::InvisibleButton("##pc", ImVec2(sw, sw))) { *c = s_pageColors[i]; changed = true; }
-                const ImVec4& pc = s_pageColors[i];
-                if (pc.w < 1.0f) Checker(dl, q, ImVec2(q.x + sw, q.y + sw));
-                dl->AddRectFilled(q, ImVec2(q.x + sw, q.y + sw), ImGui::ColorConvertFloat4ToU32(pc), U(3));
-                dl->AddRect(q, ImVec2(q.x + sw, q.y + sw), ImGui::IsItemHovered() ? IM_COL32_WHITE : IM_COL32(255, 255, 255, 40), U(3));
-                if (ImGui::IsItemHovered()) ImGui::SetTooltip("#%s", ColorToHex(pc).c_str() + 1);
-                ImGui::PopID();
-            }
+            int hit = SwatchGrid("##page", s_pageColors, w, 32);
+            if (hit >= 0) { *c = s_pageColors[hit]; changed = true; }
         }
 
         // Eyedropper: a transparent full-screen popup above everything; click picks the pixel under the pointer.
@@ -335,13 +358,80 @@ namespace ui
         dl->AddRect(a, b, IM_COL32(255, 255, 255, 40), U(2));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(12), U(12)));
         // Open to the left of the inspector, like design tools do.
-        ImGui::SetNextWindowPos(ImVec2(p.x - U(28), std::min(p.y - U(40), ImGui::GetMainViewport()->WorkPos.y + ImGui::GetMainViewport()->WorkSize.y - U(470))), ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
+        // Kept inside the window using last frame's height; taller than the window scrolls.
+        ImGuiViewport* vp = ImGui::GetMainViewport();
+        float* lastH = ImGui::GetStateStorage()->GetFloatRef(ImGui::GetID("##pickerh"), U(470));
+        float py = std::max(vp->WorkPos.y + U(8), std::min(p.y - U(40), vp->WorkPos.y + vp->WorkSize.y - *lastH - U(8)));
+        ImGui::SetNextWindowPos(ImVec2(p.x - U(28), py), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, vp->WorkSize.y - U(16)));
         if (ImGui::BeginPopup("##picker"))
         {
+            *lastH = ImGui::GetWindowSize().y;
+            // Top bar (Figma): Custom / Libraries, save the color, close.
+            float pw = U(240), fh = ImGui::GetFrameHeight();
+            int* lib = ImGui::GetStateStorage()->GetIntRef(ImGui::GetID("##lib"), 0);
+            ImDrawList* pdl = ImGui::GetWindowDrawList();
+            const char* tabs[2] = { "Custom", "Libraries" };
+            for (int t = 0; t < 2; t++)
+            {
+                if (t) ImGui::SameLine(0, U(2));
+                ImVec2 q = ImGui::GetCursorScreenPos();
+                ImVec2 ts = ImGui::CalcTextSize(tabs[t]);
+                ImVec2 sz(ts.x + U(16), fh);
+                ImGui::PushID(t);
+                if (ImGui::InvisibleButton("##ptab", sz)) *lib = t;
+                bool hov = ImGui::IsItemHovered();
+                ImGui::PopID();
+                if (*lib == t) pdl->AddRectFilled(q, ImVec2(q.x + sz.x, q.y + sz.y), IM_COL32(255, 255, 255, 22), U(5));
+                pdl->AddText(ImVec2(q.x + U(8), q.y + (fh - ts.y) * 0.5f), *lib == t || hov ? Text : TextDim, tabs[t]);
+            }
             ImVec4* target = c;
-            int hr = header && *header ? (*header)(&target) : 0;
-            changed |= (hr & 1) != 0;
-            if (!(hr & 2)) changed |= ColorPickerBody(target, U(240));
+            float rx = ImGui::GetWindowContentRegionMin().x + pw - fh * 2 - U(2);
+            ImGui::SameLine(rx);
+            bool save = IconButton("##psave", Icon::Plus, false, 0, "Save color to Libraries");
+            ImGui::SameLine(0, U(2));
+            if (IconButton("##pclose", Icon::Close, false, 0, "Close")) ImGui::CloseCurrentPopup();
+            ImVec2 lp = ImGui::GetCursorScreenPos();
+            pdl->AddLine(ImVec2(lp.x - U(12), lp.y + U(2)), ImVec2(lp.x + pw + U(12), lp.y + U(2)), Divider);
+            ImGui::Dummy(ImVec2(pw, U(6)));
+            if (*lib == 0)
+            {
+                int hr = header && *header ? (*header)(&target) : 0;
+                changed |= (hr & 1) != 0;
+                if (!(hr & 2)) changed |= ColorPickerBody(target, pw);
+            }
+            else
+            {
+                std::vector<ImVec4>& saved = SavedColors();
+                ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+                ImGui::TextUnformatted("Saved colors");
+                ImGui::PopStyleColor();
+                if (saved.empty()) Label("Press + to save the current color here.");
+                int hit = SwatchGrid("##saved", saved, pw);
+                if (hit >= 0) { *c = saved[hit]; changed = true; }
+                if (!s_pageColors.empty())
+                {
+                    ImGui::Dummy(ImVec2(0, U(6)));
+                    ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+                    ImGui::TextUnformatted("On this page");
+                    ImGui::PopStyleColor();
+                    int ph = SwatchGrid("##libpage", s_pageColors, pw);
+                    if (ph >= 0) { *c = s_pageColors[ph]; changed = true; }
+                }
+                if (!saved.empty())
+                {
+                    ImGui::Dummy(ImVec2(0, U(4)));
+                    if (ImGui::Button("Clear saved colors", ImVec2(pw, 0))) saved.clear();
+                }
+            }
+            if (save)
+            {
+                std::vector<ImVec4>& saved = SavedColors();
+                ImU32 u = ImGui::ColorConvertFloat4ToU32(*target);
+                saved.erase(std::remove_if(saved.begin(), saved.end(), [&](const ImVec4& q) { return ImGui::ColorConvertFloat4ToU32(q) == u; }), saved.end());
+                saved.insert(saved.begin(), *target);
+                if (saved.size() > 48) saved.resize(48);
+            }
             ImGui::EndPopup();
         }
         ImGui::PopStyleVar();

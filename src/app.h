@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-enum class Tool { Move, Frame, Rect, Ellipse, Line, Text, Hand };
+enum class Tool { Move, Frame, Rect, Ellipse, Line, Text, Hand, Pen };
 enum RightTab { Tab_Design, Tab_Prototype, Tab_Motion, Tab_Code, Tab_AI, Tab_Count };
 
 struct ChatMessage
@@ -201,6 +201,7 @@ public:
     void CollectPageColors();
     // Tabs on top of a fill's color picker. Returns bit 1 on change, bit 2 to hide the color body.
     int FillPickerHeader(Node* n, Paint* p, ImVec4** target, bool mediaFirst);
+    void ApplyImageAdjust(Node* n);   // bakes n->texture.adjust into an image copy (or restores the original)
     // Keyframe timeline (ui_timeline.cpp)
     struct KeySel { std::string node; int prop; float time; };
     bool timelineOpen = false, timelinePlaying = false, timelineLoop = true;
@@ -210,6 +211,10 @@ public:
     std::vector<float> keyDragOrig;
     float keyDragStartX = 0;
     bool keyDragging = false;
+    // rubber-band selection of keys: start in timeline time / row content y, selection it adds to
+    bool keyMarquee = false;
+    float keyMarqueeT0 = 0, keyMarqueeY0 = 0;
+    std::vector<KeySel> keyMarqueeBase;
     std::map<std::string, bool> timelineExpanded;
     std::set<std::string> timelineExpandedInit;
     struct PathDrag { bool active = false; std::string node; float time = 0; ImVec2 baseCenter, grab; } pathDrag;
@@ -247,6 +252,17 @@ public:
     std::string skippedVersion, lastSeenVersion, whatsNewText;
     updater::Release latestRelease;
     void HandleShortcuts();
+    // Pen tool and path point editing (ui_canvas.cpp)
+    std::string penId;                       // path being drawn
+    std::vector<fim::PathPoint> penPts;      // its points in world px
+    bool penDragging = false;
+    std::string pathEditId;                  // path whose points are edited (double-click a path)
+    int pathSelPt = -1, pathPtDrag = 0;      // pathPtDrag: 1 anchor, 2 in handle, 3 out handle
+    void PenInput(ImVec2 world, bool canvasHovered);
+    void FinishPen(bool close);
+    bool PathEditInput(ImVec2 world, bool canvasHovered);
+    void DrawPenOverlay(ImDrawList* dl);
+    void DeletePathPoint();
 
     float leftW = 0, rightW = 0;
     int rightTab = 0;
@@ -254,6 +270,12 @@ public:
 
     // Animation playback
     AnimClocks animClocks;
+    // Own animation presets ("My presets" in Motion): saved in the settings, shareable as .json files
+    struct UserPreset { std::string name; AnimFx anim; };
+    std::vector<UserPreset> userPresets;
+    void DrawUserPresets(Node* n, const std::vector<Node*>& nodes, float W);
+    bool ExportPresets(const std::string& path);
+    int  ImportPresets(const std::string& path);   // returns how many were added
     std::string animPlayId;
     double animPlayUntil = 0;
     void PlayAnimation(Node* n);
@@ -271,11 +293,14 @@ public:
 
 private:
     // canvas interaction
-    enum class Drag { None, Move, Resize, Marquee, Create, Pan, Pending };
+    enum class Drag { None, Move, Resize, Marquee, Create, Pan, Pending, Rotate };
     Drag m_drag = Drag::None;
     int m_handle = -1;
     ImVec2 m_dragStartWorld, m_dragStartScreen;
     std::map<std::string, ImVec4> m_dragOrig;          // id -> x,y,w,h
+    std::map<std::string, float> m_rotOrig;             // id -> rotation at the start of a rotate drag
+    ImVec2 m_rotCenter;                                 // world pivot of a rotate drag
+    float m_rotStartAngle = 0;
     std::map<std::string, std::vector<std::pair<std::string, ImVec4>>> m_dragOrigChildren;
     std::string m_createdId;
     std::string m_pendingClickId;
@@ -300,6 +325,7 @@ private:
     void BeginMove();
     void UpdateMove(ImVec2 world);
     void UpdateResize(ImVec2 world);
+    void UpdateRotate(ImVec2 world);
     void ApplySnapping(ImVec2& delta, const std::vector<Node*>& moving, bool resize, int handle);
     void LoadFromJsonText(const std::string& text, const std::string& path);
     void StartTextEdit(Node* n);

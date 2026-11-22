@@ -101,7 +101,7 @@ void App::DrawEffects(Node* n, const std::vector<Node*>& nodes)
                 q->blur.on = false;
                 // Glass needs to see through its fill.
                 if (q->fill.type == 1 && q->fill.c0.w > 0.2f) q->fill.c0.w = 0.04f;
-                if (q->fill.type == 2) { q->fill.c0.w = std::min(q->fill.c0.w, 0.08f); q->fill.c1.w = std::min(q->fill.c1.w, 0.08f); }
+                if (q->fill.type >= 2) { q->fill.c0.w = std::min(q->fill.c0.w, 0.08f); q->fill.c1.w = std::min(q->fill.c1.w, 0.08f); }
             }
             Toast("Glass looks best over colorful content");
         }
@@ -401,6 +401,156 @@ static void EasingGraph(App* app, AnimFx& a, float W, float h, float progress, b
     (void)app;
 }
 
+bool App::ExportPresets(const std::string& path)
+{
+    json list = json::array();
+    for (auto& p : userPresets) list.push_back({ { "name", p.name }, { "animation", AnimToJson(p.anim) } });
+    json j{ { "format", "fimgui-anim-presets" }, { "version", 1 }, { "presets", list } };
+    return platform::WriteText(path, j.dump(1));
+}
+
+int App::ImportPresets(const std::string& path)
+{
+    std::string text;
+    if (!platform::ReadText(path, text)) return 0;
+    json j = json::parse(text, nullptr, false);
+    if (j.is_discarded()) return 0;
+    const json& list = j.is_array() ? j : j.value("presets", json::array());
+    int added = 0;
+    for (auto& p : list)
+    {
+        if (!p.is_object() || !p.contains("animation")) continue;
+        std::string name = p.value("name", std::string("Preset"));
+        // same name: the imported one replaces it
+        userPresets.erase(std::remove_if(userPresets.begin(), userPresets.end(), [&](const UserPreset& u) { return u.name == name; }), userPresets.end());
+        userPresets.push_back({ name, AnimFromJson(p["animation"]) });
+        added++;
+    }
+    return added;
+}
+
+// "My presets": cards like the built-in ones, plus "Save current". Right-click a card to rename, update or delete it.
+void App::DrawUserPresets(Node* n, const std::vector<Node*>& nodes, float W)
+{
+    static char nameBuf[64] = "";
+    static int renameIdx = -1;      // -1: the name is for a new preset
+    bool openName = false;
+    double t = ImGui::GetTime();
+    float gap = U(6);
+    float cw = (W - gap * 2) / 3, ch = U(64);
+    float x0 = ImGui::GetCursorPosX();
+    ImGui::PushStyleColor(ImGuiCol_Text, TextFaint);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("My presets");
+    ImGui::PopStyleColor();
+    ImGui::SameLine(x0 + W - ImGui::GetFrameHeight());
+    if (IconButton("##upmenu", Icon::Menu, false, 0, "Import / export presets")) ImGui::OpenPopup("##upfile");
+    if (ImGui::BeginPopup("##upfile"))
+    {
+        if (ImGui::MenuItem("Import presets..."))
+        {
+            std::string f = platform::OpenFileDialog("Import animation presets", "Animation presets|*.json");
+            if (!f.empty())
+            {
+                int k = ImportPresets(f);
+                if (k) { SaveSettings(); Toast("Imported " + std::to_string(k) + (k == 1 ? " preset" : " presets")); }
+                else Toast("No presets in that file", true);
+            }
+        }
+        if (ImGui::MenuItem("Export presets...", nullptr, false, !userPresets.empty()))
+        {
+            std::string f = platform::SaveFileDialog("Export animation presets", "Animation presets|*.json", "animation-presets.json", "json");
+            if (!f.empty()) { bool ok = ExportPresets(f); Toast(ok ? "Presets exported" : "Cannot write the file", !ok); }
+        }
+        ImGui::EndPopup();
+    }
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    int col = 0, remove = -1;
+    for (int i = 0; i <= (int)userPresets.size(); i++)
+    {
+        bool add = i == (int)userPresets.size();
+        if (add && !n->anim.preset) break;   // nothing to save yet
+        if (col) ImGui::SameLine(0, gap);
+        ImGui::PushID(i);
+        ImVec2 p = ImGui::GetCursorScreenPos();
+        bool clicked = ImGui::InvisibleButton("##ucard", ImVec2(cw, ch));
+        bool hov = ImGui::IsItemHovered();
+        dl->AddRectFilled(p, ImVec2(p.x + cw, p.y + ch), hov ? IM_COL32(66, 66, 66, 255) : Field, U(8));
+        if (add)
+        {
+            // dashed "save" card
+            dl->AddRect(p, ImVec2(p.x + cw, p.y + ch), IM_COL32(255, 255, 255, hov ? 90 : 40), U(8), 0, 1.0f);
+            DrawIcon(dl, Icon::Plus, ImVec2(p.x + cw * 0.5f, p.y + ch * 0.5f - U(8)), U(14), hov ? Text : TextDim);
+            const char* label = "Save current";
+            float fs = ImGui::GetFontSize() * 0.92f;
+            ImVec2 ts = fonts::UI(fonts::UI_Regular)->CalcTextSizeA(fs, FLT_MAX, 0, label);
+            dl->AddText(fonts::UI(fonts::UI_Regular), fs, ImVec2(p.x + (cw - ts.x) * 0.5f, p.y + ch - ts.y - U(5)), hov ? Text : TextDim, label);
+            if (hov) ImGui::SetTooltip("Save this layer's animation (with its keyframes) as a preset");
+            if (clicked)
+            {
+                snprintf(nameBuf, sizeof(nameBuf), "%s", (std::string(AnimPresetLabel(n->anim.preset)) + " " + std::to_string(userPresets.size() + 1)).c_str());
+                renameIdx = -1;
+                openName = true;
+            }
+        }
+        else
+        {
+            UserPreset& up = userPresets[i];
+            fim::AnimSpec spec = ToAnimSpec(up.anim);
+            fim::AnimValue v = PreviewSample(spec, t + i * 0.17, nullptr);
+            dl->PushClipRect(p, ImVec2(p.x + cw, p.y + ch - U(16)), true);
+            DrawPreviewShape(dl, p, ImVec2(p.x + cw, p.y + ch - U(14)), v, U(18), 0.6f * dpi, IM_COL32(200, 200, 210, 255));
+            dl->PopClipRect();
+            float fs = ImGui::GetFontSize() * 0.92f;
+            dl->PushClipRect(ImVec2(p.x + U(4), p.y), ImVec2(p.x + cw - U(4), p.y + ch), true);
+            ImVec2 ts = fonts::UI(fonts::UI_Regular)->CalcTextSizeA(fs, FLT_MAX, 0, up.name.c_str());
+            dl->AddText(fonts::UI(fonts::UI_Regular), fs, ImVec2(p.x + std::max(U(4), (cw - ts.x) * 0.5f), p.y + ch - ts.y - U(5)), TextDim, up.name.c_str());
+            dl->PopClipRect();
+            if (hov) ImGui::SetTooltip("%s\n%s, %.2f s - click to apply, right-click for more", up.name.c_str(), AnimPresetLabel(up.anim.preset), up.anim.duration);
+            if (clicked)
+            {
+                for (Node* q : nodes) q->anim = up.anim;
+                MarkDirty();
+                if (up.anim.preset == fim::Anim_Keyframes) { timelineOpen = true; timelineTime = 0; }
+                else PlayAnimation(n);
+            }
+            if (ImGui::BeginPopupContextItem("##ucmenu"))
+            {
+                if (ImGui::MenuItem("Rename...")) { snprintf(nameBuf, sizeof(nameBuf), "%s", up.name.c_str()); renameIdx = i; openName = true; }
+                if (ImGui::MenuItem("Update from selection", nullptr, false, n->anim.preset != 0)) { up.anim = n->anim; SaveSettings(); }
+                if (ImGui::MenuItem("Delete")) remove = i;
+                ImGui::EndPopup();
+            }
+        }
+        ImGui::PopID();
+        col = (col + 1) % 3;
+    }
+    if (remove >= 0) { userPresets.erase(userPresets.begin() + remove); SaveSettings(); }
+    // name popup for "Save current" and "Rename" (opened here, outside the cards' ID scopes)
+    if (openName) ImGui::OpenPopup("##upname");
+    if (ImGui::BeginPopup("##upname"))
+    {
+        ImGui::TextUnformatted(renameIdx < 0 ? "Save animation preset" : "Rename preset");
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+        ImGui::SetNextItemWidth(U(200));
+        bool enter = ImGui::InputText("##upn", nameBuf, sizeof(nameBuf), ImGuiInputTextFlags_EnterReturnsTrue);
+        bool ok = (ui::PrimaryButton(renameIdx < 0 ? "Save" : "Rename") || enter) && nameBuf[0];
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) ImGui::CloseCurrentPopup();
+        if (ok)
+        {
+            if (renameIdx >= 0 && renameIdx < (int)userPresets.size()) userPresets[renameIdx].name = nameBuf;
+            else userPresets.push_back({ nameBuf, n->anim });
+            SaveSettings();
+            if (renameIdx < 0) Toast(std::string("Saved preset ") + nameBuf);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::Dummy(ImVec2(0, U(2)));
+}
+
 void App::DrawMotionTab()
 {
     float W = ui::Avail();
@@ -464,6 +614,7 @@ void App::DrawMotionTab()
             }
             ImGui::Dummy(ImVec2(0, U(2)));
         }
+        DrawUserPresets(n, nodes, W);
 
         if (n->anim.preset)
         {

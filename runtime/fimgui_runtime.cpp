@@ -50,7 +50,8 @@ namespace fim
         ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
         float half = (fabsf(dir.x) * (b.x - a.x) + fabsf(dir.y) * (b.y - a.y)) * 0.5f;
         if (half < 1e-3f) half = 1e-3f;
-        ImVec4 c0 = ImGui::ColorConvertU32ToFloat4(p.c0), c1 = ImGui::ColorConvertU32ToFloat4(p.c1);
+        bool st = p.stops && p.stopCount >= 2;
+        ImVec4 c0 = ImGui::ColorConvertU32ToFloat4(st ? p.stops[0].col : p.c0), c1 = ImGui::ColorConvertU32ToFloat4(st ? p.stops[p.stopCount - 1].col : p.c1);
         for (int i = start; i < end; i++)
         {
             ImDrawVert& v = dl->VtxBuffer[i];
@@ -61,9 +62,171 @@ namespace fim
         }
     }
 
+    // Outline of a rounded rect / ellipse grown by 'grow' px. The point count is fixed per shape, so rings line up.
+    static const int kCornerSegs = 10, kEdgeSegs = 12, kEllipsePts = 96, kMaxOutline = 96;
+    static int ShapeOutline(ImVec2 a, ImVec2 b, const float rin[4], bool ellipse, float grow, ImVec2* out)
+    {
+        ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+        if (ellipse)
+        {
+            float rx = ImMax(0.0f, (b.x - a.x) * 0.5f + grow), ry = ImMax(0.0f, (b.y - a.y) * 0.5f + grow);
+            for (int i = 0; i < kEllipsePts; i++)
+            {
+                float t = 2 * PI * i / kEllipsePts;
+                out[i] = ImVec2(c.x + cosf(t) * rx, c.y + sinf(t) * ry);
+            }
+            return kEllipsePts;
+        }
+        float r[4];
+        ClampRadii(a, b, rin, r);
+        ImVec2 ga(a.x - grow, a.y - grow), gb(b.x + grow, b.y + grow);
+        if (gb.x < ga.x) ga.x = gb.x = c.x;
+        if (gb.y < ga.y) ga.y = gb.y = c.y;
+        ImVec2 centers[4] = { ImVec2(a.x + r[0], a.y + r[0]), ImVec2(b.x - r[1], a.y + r[1]), ImVec2(b.x - r[2], b.y - r[2]), ImVec2(a.x + r[3], b.y - r[3]) };
+        // corner arcs, then the straight edges are split too, so colors interpolate smoothly along them
+        ImVec2 arc[4][kCornerSegs + 1];
+        for (int k = 0; k < 4; k++)
+        {
+            float rr = ImMax(0.0f, r[k] + grow);
+            float a0 = PI * (1.0f + 0.5f * k);   // the top-left corner starts at 180 degrees
+            for (int i = 0; i <= kCornerSegs; i++)
+            {
+                float t = a0 + 0.5f * PI * i / kCornerSegs;
+                ImVec2 p(centers[k].x + cosf(t) * rr, centers[k].y + sinf(t) * rr);
+                arc[k][i] = ImVec2(ImClamp(p.x, ga.x, gb.x), ImClamp(p.y, ga.y, gb.y));
+            }
+        }
+        int n = 0;
+        for (int k = 0; k < 4; k++)
+        {
+            for (int i = 0; i <= kCornerSegs; i++) out[n++] = arc[k][i];
+            ImVec2 e0 = arc[k][kCornerSegs], e1 = arc[(k + 1) % 4][0];
+            for (int i = 1; i < kEdgeSegs; i++) out[n++] = ImLerp(e0, e1, (float)i / kEdgeSegs);
+        }
+        return n;
+    }
+    static_assert(4 * (kCornerSegs + kEdgeSegs) <= kMaxOutline, "outline buffer");
+
+    // Signed distance from p to a rounded rect (corner radii tl, tr, br, bl) or an ellipse; negative inside.
+    static float ShapeDistance(ImVec2 a, ImVec2 b, const float rin[4], bool ellipse, ImVec2 p)
+    {
+        ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), h(ImMax(0.0f, (b.x - a.x) * 0.5f), ImMax(0.0f, (b.y - a.y) * 0.5f));
+        float px = p.x - c.x, py = p.y - c.y;
+        if (ellipse)
+        {
+            // approximation from the gradient of the implicit function
+            float rx = ImMax(1e-3f, h.x), ry = ImMax(1e-3f, h.y);
+            float k0 = sqrtf((px / rx) * (px / rx) + (py / ry) * (py / ry));
+            float k1 = sqrtf((px / (rx * rx)) * (px / (rx * rx)) + (py / (ry * ry)) * (py / (ry * ry)));
+            return k1 > 1e-6f ? k0 * (k0 - 1.0f) / k1 : -ImMin(rx, ry);
+        }
+        float r[4];
+        ClampRadii(a, b, rin, r);
+        float rr = px < 0 ? (py < 0 ? r[0] : r[3]) : (py < 0 ? r[1] : r[2]);
+        float qx = fabsf(px) - h.x + rr, qy = fabsf(py) - h.y + rr;
+        float ox = ImMax(qx, 0.0f), oy = ImMax(qy, 0.0f);
+        return sqrtf(ox * ox + oy * oy) + ImMin(ImMax(qx, qy), 0.0f) - rr;
+    }
+
+    // Position 0..1 of point q in a gradient over the box a-b.
+    static float GradientT(const Paint& p, ImVec2 a, ImVec2 b, ImVec2 q)
+    {
+        ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+        if (p.type == Paint_Linear)
+        {
+            float ang = p.angle * PI / 180.0f;
+            ImVec2 dir(cosf(ang), sinf(ang));
+            float half = ImMax(1e-3f, (fabsf(dir.x) * (b.x - a.x) + fabsf(dir.y) * (b.y - a.y)) * 0.5f);
+            return ImSaturate(((q.x - c.x) * dir.x + (q.y - c.y) * dir.y) / (2.0f * half) + 0.5f);
+        }
+        float hx = ImMax(1e-3f, (b.x - a.x) * 0.5f), hy = ImMax(1e-3f, (b.y - a.y) * 0.5f);
+        float nx = (q.x - c.x) / hx, ny = (q.y - c.y) / hy;
+        if (p.type == Paint_Radial) return ImSaturate(sqrtf(nx * nx + ny * ny));
+        if (p.type == Paint_Diamond) return ImSaturate(fabsf(nx) + fabsf(ny));
+        float t = (atan2f(ny, nx) * 180.0f / PI - p.angle) / 360.0f;
+        return t - floorf(t);
+    }
+
+    ImU32 GradientColorAt(const Paint& p, float t)
+    {
+        ImU32 a = p.c0, b = p.c1;
+        if (p.stops && p.stopCount > 0)
+        {
+            const GradientStop* s = p.stops;
+            int n = p.stopCount;
+            if (t <= s[0].pos) return s[0].col;
+            if (t >= s[n - 1].pos) return s[n - 1].col;
+            for (int i = 0; i + 1 < n; i++)
+                if (t <= s[i + 1].pos)
+                {
+                    float span = s[i + 1].pos - s[i].pos;
+                    a = s[i].col; b = s[i + 1].col;
+                    t = span > 1e-5f ? (t - s[i].pos) / span : 1.0f;
+                    break;
+                }
+        }
+        return LerpColor(a, b, t);
+    }
+
+    static ImU32 GradientColor(const Paint& p, float t, float alpha) { return Fade(GradientColorAt(p, t), alpha); }
+
+    // A linear gradient with exactly two end stops is affine in position, so the plain convex fill can be recolored.
+    static bool SimpleLinear(const Paint& p)
+    {
+        return p.type == Paint_Linear && (!p.stops || p.stopCount < 2 || (p.stopCount == 2 && p.stops[0].pos <= 0.0f && p.stops[1].pos >= 1.0f));
+    }
+
+    // Writes one quad with its own four vertices.
+    static void Quad(ImDrawList* dl, const ImVec2 v[4], const ImU32 col[4])
+    {
+        ImVec2 uv = dl->_Data->TexUvWhitePixel;
+        ImDrawIdx base = (ImDrawIdx)dl->_VtxCurrentIdx;
+        for (int j = 0; j < 4; j++) dl->PrimWriteVtx(v[j], uv, col[j]);
+        dl->PrimWriteIdx(base); dl->PrimWriteIdx((ImDrawIdx)(base + 1)); dl->PrimWriteIdx((ImDrawIdx)(base + 2));
+        dl->PrimWriteIdx(base); dl->PrimWriteIdx((ImDrawIdx)(base + 2)); dl->PrimWriteIdx((ImDrawIdx)(base + 3));
+    }
+
+    // Radial / angular / diamond fill: concentric rings of the shape carry the colors, a thin AA stroke smooths the edge.
+    static void FillShapeGradient(ImDrawList* dl, ImVec2 a, ImVec2 b, const float r[4], bool ellipse, const Paint& p, float alpha)
+    {
+        ImVec2 ring[kMaxOutline];
+        int n = ShapeOutline(a, b, r, ellipse, -0.5f, ring);
+        ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+        const int rings = 24;
+        for (int k = 0; k < rings; k++)
+        {
+            float s0 = ImMax(1e-3f, (float)k / rings), s1 = (float)(k + 1) / rings;
+            dl->PrimReserve(n * 6, n * 4);
+            for (int i = 0; i < n; i++)
+            {
+                ImVec2 q0 = ring[i], q1 = ring[(i + 1) % n];
+                ImVec2 v[4] = { ImVec2(c.x + (q0.x - c.x) * s0, c.y + (q0.y - c.y) * s0), ImVec2(c.x + (q1.x - c.x) * s0, c.y + (q1.y - c.y) * s0),
+                                ImVec2(c.x + (q1.x - c.x) * s1, c.y + (q1.y - c.y) * s1), ImVec2(c.x + (q0.x - c.x) * s1, c.y + (q0.y - c.y) * s1) };
+                float t[4];
+                for (int j = 0; j < 4; j++) t[j] = GradientT(p, a, b, v[j]);
+                // angular: a quad across the seam keeps the colors of its own side instead of sweeping the whole range
+                if (p.type == Paint_Angular)
+                    for (int j = 1; j < 4; j++) if (fabsf(t[j] - t[0]) > 0.5f) t[j] = t[0] > 0.5f ? 1.0f : 0.0f;
+                ImU32 col[4];
+                for (int j = 0; j < 4; j++) col[j] = GradientColor(p, t[j], alpha);
+                Quad(dl, v, col);
+            }
+        }
+        int start = dl->VtxBuffer.Size;
+        for (int i = 0; i < n; i++) dl->PathLineTo(ring[i]);
+        dl->PathStroke(IM_COL32_WHITE, ImDrawFlags_Closed, 1.0f);
+        for (int i = start; i < dl->VtxBuffer.Size; i++)
+        {
+            ImDrawVert& v = dl->VtxBuffer[i];
+            float va = ((v.col >> IM_COL32_A_SHIFT) & 0xFF) / 255.0f;
+            v.col = GradientColor(p, GradientT(p, a, b, v.pos), alpha * va);
+        }
+    }
+
     void FillRect(ImDrawList* dl, ImVec2 a, ImVec2 b, const float r[4], const Paint& p, float alpha)
     {
         if (p.type == Paint_None || b.x <= a.x || b.y <= a.y) return;
+        if (p.type >= Paint_Radial || (p.type == Paint_Linear && !SimpleLinear(p))) { FillShapeGradient(dl, a, b, r, false, p, alpha); return; }
         int start = dl->VtxBuffer.Size;
         PathRoundRect(dl, a, b, r);
         if (p.type == Paint_Solid) { dl->PathFillConvex(Fade(p.c0, alpha)); return; }
@@ -84,6 +247,7 @@ namespace fim
     void FillEllipse(ImDrawList* dl, ImVec2 a, ImVec2 b, const Paint& p, float alpha)
     {
         if (p.type == Paint_None) return;
+        if (p.type >= Paint_Radial || (p.type == Paint_Linear && !SimpleLinear(p))) { FillShapeGradient(dl, a, b, nullptr, true, p, alpha); return; }
         ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), rad((b.x - a.x) * 0.5f, (b.y - a.y) * 0.5f);
         int start = dl->VtxBuffer.Size;
         dl->PathEllipticalArcTo(c, rad, 0.0f, 0.0f, 2.0f * PI);
@@ -105,51 +269,78 @@ namespace fim
         if (s.type == Shadow_None) return;
         float blur = s.blur * scale, spread = s.spread * scale;
         ImVec2 off(s.offset.x * scale, s.offset.y * scale);
-        int steps = (int)ImClamp(blur * 0.5f, 1.0f, 14.0f);
         ImVec4 col = ImGui::ColorConvertU32ToFloat4(s.color);
         col.w *= alpha;
+        if (col.w <= 0.0f) return;
+        // Gaussian blur of the shape (sigma = blur / 2, as in Figma and CSS): across the edge the alpha follows
+        // erfc of the distance. Rings of the shape carry that profile as vertex colors.
+        float sigma = ImMax(0.25f, blur * 0.5f), ext = ImMax(0.75f, sigma * 3.0f);
+        auto cover = [&](float d) { return 0.5f * erfcf(d / (sigma * 1.41421356f)); };   // d: distance outside the edge
+        auto rgba = [&](float a) { return ImGui::ColorConvertFloat4ToU32(ImVec4(col.x, col.y, col.z, a)); };
+        ImVec2 ra[kMaxOutline], rb[kMaxOutline];
+        ImVec2 uv = dl->_Data->TexUvWhitePixel;
+        auto strip = [&](int n, ImU32 c0, ImU32 c1) {
+            dl->PrimReserve(n * 6, n * 4);
+            for (int i = 0; i < n; i++)
+            {
+                int j = (i + 1) % n;
+                ImVec2 v[4] = { ra[i], ra[j], rb[j], rb[i] };
+                ImU32 cc[4] = { c0, c0, c1, c1 };
+                Quad(dl, v, cc);
+            }
+        };
+        auto fan = [&](const ImVec2* pts, const ImU32* cols, int n) {
+            dl->PrimReserve((n - 2) * 3, n);
+            ImDrawIdx base = (ImDrawIdx)dl->_VtxCurrentIdx;
+            for (int i = 0; i < n; i++) dl->PrimWriteVtx(pts[i], uv, cols[i]);
+            for (int i = 2; i < n; i++) { dl->PrimWriteIdx(base); dl->PrimWriteIdx((ImDrawIdx)(base + i - 1)); dl->PrimWriteIdx((ImDrawIdx)(base + i)); }
+        };
         if (s.type == Shadow_Drop)
         {
-            // Stack of progressively smaller, translucent shapes approximates a gaussian falloff.
-            float per = 1.0f - powf(1.0f - ImClamp(col.w, 0.0f, 0.999f), 1.0f / steps);
-            for (int i = 0; i < steps; i++)
+            // rings of the offset shape grown by spread, from 3 sigma inside to 3 sigma outside, then a solid core
+            ImVec2 sa(a.x + off.x, a.y + off.y), sb(b.x + off.x, b.y + off.y);
+            const int rings = 14;
+            int n = 0;
+            for (int k = 0; k < rings; k++)
             {
-                float k = steps == 1 ? 0.0f : (float)i / (steps - 1);
-                float e = spread + blur * (0.5f - k * 1.0f) * 0.9f;
-                ImVec2 pa(a.x + off.x - e, a.y + off.y - e), pb(b.x + off.x + e, b.y + off.y + e);
-                ImU32 c = ImGui::ColorConvertFloat4ToU32(ImVec4(col.x, col.y, col.z, per));
-                if (ellipse)
-                    dl->AddEllipseFilled(ImVec2((pa.x + pb.x) * 0.5f, (pa.y + pb.y) * 0.5f), ImVec2((pb.x - pa.x) * 0.5f, (pb.y - pa.y) * 0.5f), c);
-                else
-                {
-                    float rr[4];
-                    for (int j = 0; j < 4; j++) rr[j] = ImMax(0.0f, (r ? r[j] : 0.0f) + e);
-                    PathRoundRect(dl, pa, pb, rr);
-                    dl->PathFillConvex(c);
-                }
+                float d0 = -ext + 2 * ext * k / rings, d1 = -ext + 2 * ext * (k + 1) / rings;
+                n = ShapeOutline(sa, sb, r, ellipse, spread + d0, ra);
+                ShapeOutline(sa, sb, r, ellipse, spread + d1, rb);
+                strip(n, rgba(col.w * cover(d0)), rgba(col.w * cover(d1)));
             }
+            n = ShapeOutline(sa, sb, r, ellipse, spread - ext, ra);
+            ImU32 cols[kMaxOutline];
+            for (int i = 0; i < n; i++) cols[i] = rgba(col.w * cover(-ext));
+            fan(ra, cols, n);
+            return;
         }
-        else
+        // Inner shadow: drawn only inside the shape, in inset rings; every vertex gets its alpha from the
+        // signed distance to the offset shape shrunk by spread (rounded corners included, nothing leaks out).
+        ImVec2 ia(a.x + off.x + spread, a.y + off.y + spread), ib(b.x + off.x - spread, b.y + off.y - spread);
+        float ir[4];
+        for (int i = 0; i < 4; i++) ir[i] = ImMax(0.0f, (r ? r[i] : 0.0f) - spread);
+        float maxInset = ImMin(b.x - a.x, b.y - a.y) * 0.5f;
+        float depth = ImMin(maxInset, ext + fabsf(spread) + ImMax(fabsf(off.x), fabsf(off.y)));
+        int rings = (int)ImClamp(depth / ImMax(0.5f, sigma * 0.5f), 6.0f, 40.0f);
+        auto vertexCol = [&](ImVec2 p) { return rgba(col.w * (1.0f - cover(ShapeDistance(ia, ib, ir, ellipse, p)))); };
+        int n = 0;
+        for (int k = 0; k < rings; k++)
         {
-            dl->PushClipRect(a, b, true);
-            float per = 1.0f - powf(1.0f - ImClamp(col.w, 0.0f, 0.999f), 1.0f / steps);
-            ImU32 c = ImGui::ColorConvertFloat4ToU32(ImVec4(col.x, col.y, col.z, per));
-            for (int i = 0; i < steps; i++)
+            n = ShapeOutline(a, b, r, ellipse, -depth * k / rings, ra);
+            ShapeOutline(a, b, r, ellipse, -depth * (k + 1) / rings, rb);
+            dl->PrimReserve(n * 6, n * 4);
+            for (int i = 0; i < n; i++)
             {
-                float w = spread + blur * (float)(i + 1) / steps;
-                float rr[4];
-                for (int j = 0; j < 4; j++) rr[j] = ImMax(0.0f, (r ? r[j] : 0.0f) + w * 0.5f);
-                ImVec2 pa(a.x + off.x - w * 0.5f, a.y + off.y - w * 0.5f), pb(b.x + off.x + w * 0.5f, b.y + off.y + w * 0.5f);
-                if (ellipse)
-                    dl->AddEllipse(ImVec2((pa.x + pb.x) * 0.5f, (pa.y + pb.y) * 0.5f), ImVec2((pb.x - pa.x) * 0.5f, (pb.y - pa.y) * 0.5f), c, 0.0f, 0, w);
-                else
-                {
-                    PathRoundRect(dl, pa, pb, rr);
-                    dl->PathStroke(c, ImDrawFlags_Closed, w);
-                }
+                int j = (i + 1) % n;
+                ImVec2 v[4] = { ra[i], ra[j], rb[j], rb[i] };
+                ImU32 cc[4] = { vertexCol(v[0]), vertexCol(v[1]), vertexCol(v[2]), vertexCol(v[3]) };
+                Quad(dl, v, cc);
             }
-            dl->PopClipRect();
         }
+        n = ShapeOutline(a, b, r, ellipse, -depth, ra);
+        ImU32 cols[kMaxOutline];
+        for (int i = 0; i < n; i++) cols[i] = vertexCol(ra[i]);
+        fan(ra, cols, n);
     }
 
     void DrawLine(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 col, float t, float alpha)
@@ -168,6 +359,122 @@ namespace fim
         dl->PathFillConvex(Fade(tint, alpha));
         ImGui::ShadeVertsLinearUV(dl, start, dl->VtxBuffer.Size, a, b, uv0, uv1, true);
         dl->PopTexture();
+    }
+
+    void PathOutline(ImVec2 a, ImVec2 b, const PathPoint* pts, int count, bool closed, ImVector<ImVec2>& out)
+    {
+        out.resize(0);
+        if (count <= 0) return;
+        ImVec2 sz(b.x - a.x, b.y - a.y);
+        auto P = [&](ImVec2 q) { return ImVec2(a.x + q.x * sz.x, a.y + q.y * sz.y); };
+        auto push = [&](ImVec2 q) { if (out.Size == 0 || ImLengthSqr(ImVec2(q.x - out.back().x, q.y - out.back().y)) > 0.01f) out.push_back(q); };
+        int segs = closed ? count : count - 1;
+        push(P(pts[0].p));
+        for (int i = 0; i < segs; i++)
+        {
+            const PathPoint& s = pts[i];
+            const PathPoint& e = pts[(i + 1) % count];
+            ImVec2 p0 = P(s.p), p3 = P(e.p);
+            bool curve = s.out.x != 0 || s.out.y != 0 || e.in.x != 0 || e.in.y != 0;
+            if (!curve) { push(p3); continue; }
+            ImVec2 p1 = P(ImVec2(s.p.x + s.out.x, s.p.y + s.out.y)), p2 = P(ImVec2(e.p.x + e.in.x, e.p.y + e.in.y));
+            float len = sqrtf(ImLengthSqr(ImVec2(p1.x - p0.x, p1.y - p0.y))) + sqrtf(ImLengthSqr(ImVec2(p2.x - p1.x, p2.y - p1.y))) + sqrtf(ImLengthSqr(ImVec2(p3.x - p2.x, p3.y - p2.y)));
+            int n = (int)ImClamp(len / 4.0f, 6.0f, 64.0f);
+            for (int k = 1; k <= n; k++)
+            {
+                float t = (float)k / n, u = 1 - t;
+                push(ImVec2(u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+                            u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y));
+            }
+        }
+        if (closed && out.Size > 1 && ImLengthSqr(ImVec2(out[0].x - out.back().x, out[0].y - out.back().y)) < 0.01f) out.pop_back();
+    }
+
+    void DrawPath(ImDrawList* dl, ImVec2 a, ImVec2 b, const PathPoint* pts, int count, bool closed, const Paint& p, ImU32 stroke, float thickness, float alpha)
+    {
+        ImVector<ImVec2> line;
+        PathOutline(a, b, pts, count, closed, line);
+        if (line.Size < 2) return;
+        if (closed && line.Size >= 3 && p.type != Paint_None)
+        {
+            int start = dl->VtxBuffer.Size;
+            dl->AddConcavePolyFilled(line.Data, line.Size, p.type == Paint_Solid ? Fade(p.c0, alpha) : IM_COL32_WHITE);
+            if (p.type != Paint_Solid)
+                for (int i = start; i < dl->VtxBuffer.Size; i++)
+                {
+                    ImDrawVert& v = dl->VtxBuffer[i];
+                    float va = ((v.col >> IM_COL32_A_SHIFT) & 0xFF) / 255.0f;
+                    v.col = GradientColor(p, GradientT(p, a, b, v.pos), alpha * va);
+                }
+        }
+        if (thickness > 0.0f && ((stroke >> IM_COL32_A_SHIFT) & 0xFF))
+            dl->AddPolyline(line.Data, line.Size, Fade(stroke, alpha), closed ? ImDrawFlags_Closed : 0, thickness);
+    }
+
+    int RotateBegin(ImDrawList* dl) { return dl->VtxBuffer.Size; }
+
+    void RotateEnd(ImDrawList* dl, int begin, ImVec2 c, float degrees)
+    {
+        if (degrees == 0.0f) return;
+        float s = sinf(degrees * PI / 180.0f), k = cosf(degrees * PI / 180.0f);
+        for (int i = begin; i < dl->VtxBuffer.Size; i++)
+        {
+            ImVec2& p = dl->VtxBuffer[i].pos;
+            float x = p.x - c.x, y = p.y - c.y;
+            p = ImVec2(c.x + x * k - y * s, c.y + x * s + y * k);
+        }
+    }
+
+    void AutoLayout(LayoutItem* items, int count, const LayoutSpec& sp, float* w, float* h)
+    {
+        bool hz = sp.horizontal;
+        auto mainSize = [&](LayoutItem& c) -> float& { return hz ? c.w : c.h; };
+        auto crossSize = [&](LayoutItem& c) -> float& { return hz ? c.h : c.w; };
+        float& fMain = hz ? *w : *h;
+        float& fCross = hz ? *h : *w;
+        float padMain0 = hz ? sp.pad[0] : sp.pad[1], padMain1 = hz ? sp.pad[2] : sp.pad[3];
+        float padCross0 = hz ? sp.pad[1] : sp.pad[0], padCross1 = hz ? sp.pad[3] : sp.pad[2];
+
+        float fixed = 0, maxCross = 0;
+        int fills = 0, shown = 0;
+        for (int i = 0; i < count; i++)
+        {
+            LayoutItem& c = items[i];
+            if (!c.visible) continue;
+            shown++;
+            if (c.fillMain && !sp.hugMain) fills++;
+            else fixed += mainSize(c);
+            if (!c.fillCross && sp.alignCross != 3) maxCross = ImMax(maxCross, crossSize(c));
+        }
+        float gaps = shown > 1 ? sp.gap * (shown - 1) : 0.0f;
+        if (sp.hugMain) fMain = padMain0 + fixed + gaps + padMain1;
+        if (sp.hugCross) fCross = padCross0 + maxCross + padCross1;
+
+        float avail = fMain - padMain0 - padMain1;
+        float innerCross = fCross - padCross0 - padCross1;
+        float freeSpace = avail - fixed - gaps;
+        float gap = sp.gap, pos = padMain0;
+        if (fills > 0)
+        {
+            float each = ImMax(0.0f, freeSpace / fills);
+            for (int i = 0; i < count; i++) if (items[i].visible && items[i].fillMain) mainSize(items[i]) = each;
+        }
+        else if (sp.alignMain == 1) pos += freeSpace * 0.5f;
+        else if (sp.alignMain == 2) pos += freeSpace;
+        else if (sp.alignMain == 3 && shown > 1) gap = (avail - fixed) / (shown - 1);
+
+        for (int i = 0; i < count; i++)
+        {
+            LayoutItem& c = items[i];
+            if (c.fillCross || sp.alignCross == 3) crossSize(c) = innerCross;
+            float cp = padCross0;
+            if (sp.alignCross == 1) cp += (innerCross - crossSize(c)) * 0.5f;
+            else if (sp.alignCross == 2) cp += innerCross - crossSize(c);
+            float mp = IM_ROUND(pos);
+            (hz ? c.x : c.y) = mp;
+            (hz ? c.y : c.x) = IM_ROUND(cp);
+            if (c.visible) pos += mainSize(c) + gap;
+        }
     }
 
     static float LineH(ImFont* font, float size, float lineHeight)
@@ -323,9 +630,11 @@ namespace fim
         return t;
     }
 
+    float AnimPropDefault(int prop) { return prop == Prop_Scale || prop == Prop_Opacity ? 1.0f : 0.0f; }
+
     float KeyTrackSample(const KeyTrack& t, float time, const float bezier[4])
     {
-        if (t.count <= 0) return t.prop == Prop_Scale || t.prop == Prop_Opacity ? 1.0f : 0.0f;
+        if (t.count <= 0) return AnimPropDefault(t.prop);
         if (time <= t.keys[0].time) return t.keys[0].value;
         for (int i = 0; i + 1 < t.count; i++)
         {
@@ -351,6 +660,7 @@ namespace fim
             case Prop_Y: v.dy = x; break;
             case Prop_Scale: v.scale = x; break;
             case Prop_Opacity: v.alpha = ImSaturate(x); break;
+            case Prop_Rotation: v.rot = x; break;
             }
         }
         return v;

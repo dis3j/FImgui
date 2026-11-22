@@ -20,6 +20,12 @@ namespace ui
     bool ColorPickerBody(ImVec4* c, float width);
     // Colors used in the document, shown under "On this page" (set once per frame by the app).
     void SetPageColors(const std::vector<ImVec4>& colors);
+    // Colors saved with "+" in the picker (Libraries tab); the app persists them in its settings.
+    std::vector<ImVec4>& SavedColors();
+    // Drawn over the saturation / brightness square of the next color picker body (once): a = top-left, b = bottom-right.
+    using SvOverlay = std::function<void(ImDrawList* dl, ImVec2 a, ImVec2 b, float hue)>;
+    void SetSvOverlay(SvOverlay fn);
+    void Checker(ImDrawList* dl, ImVec2 a, ImVec2 b, float cell = 0.0f);   // transparency checkerboard
     // Section header with optional +/- button. Returns 1 when + clicked, -1 when - clicked.
     // extra: optional icon button left of +/- (returns 2 when clicked).
     int  Section(const char* title, int button = 0, Icon extra = (Icon)-1, const char* extraTip = nullptr);

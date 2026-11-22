@@ -8,19 +8,62 @@
 
 // Implemented in fonts.cpp - measures a text node with its font.
 ImVec2 MeasureNodeText(const Node* n, float wrapWidth);
+// Implemented in renderer.cpp - false for layers that "Show when" hides in the layout state (g_layoutVars).
+bool LayoutConditionVisible(const Node* n);
 
-static const char* kTypeNames[] = { "frame", "group", "rect", "ellipse", "line", "text", "image", "vector" };
+static const char* kTypeNames[] = { "frame", "group", "rect", "ellipse", "line", "text", "image", "vector", "path" };
 static const char* kRoleNames[] = { "none", "button", "checkbox", "slider", "tab", "input", "combo", "multicombo" };
 
 const char* NodeTypeName(NodeType t) { return kTypeNames[(int)t]; }
 bool NodeTypeFromName(const std::string& s, NodeType* out)
 {
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 9; i++)
         if (s == kTypeNames[i]) { *out = (NodeType)i; return true; }
+    if (s == "pen" || s == "bezier") { *out = NodeType::Path; return true; }
     if (s == "rectangle") { *out = NodeType::Rect; return true; }
     if (s == "svg" || s == "icon") { *out = NodeType::Vector; return true; }
     return false;
 }
+std::vector<fim::PathPoint> Node::PathPx() const
+{
+    std::vector<fim::PathPoint> out = path;
+    for (auto& q : out)
+    {
+        q.p = ImVec2(q.p.x * w, q.p.y * h);
+        q.in = ImVec2(q.in.x * w, q.in.y * h);
+        q.out = ImVec2(q.out.x * w, q.out.y * h);
+    }
+    return out;
+}
+
+void Node::SetPathPx(const std::vector<fim::PathPoint>& px, bool refit)
+{
+    std::vector<fim::PathPoint> pts = px;
+    if (refit && !pts.empty())
+    {
+        // bounds of the flattened curve
+        ImVector<ImVec2> line;
+        std::vector<fim::PathPoint> unit = pts;   // PathOutline with a = (0,0), b = (1,1) keeps px
+        fim::PathOutline(ImVec2(0, 0), ImVec2(1, 1), unit.data(), (int)unit.size(), closed, line);
+        ImVec2 mn(1e9f, 1e9f), mx(-1e9f, -1e9f);
+        for (auto& q : line) { mn.x = std::min(mn.x, q.x); mn.y = std::min(mn.y, q.y); mx.x = std::max(mx.x, q.x); mx.y = std::max(mx.y, q.y); }
+        if (line.empty()) mn = mx = pts[0].p;
+        for (auto& q : pts) q.p = ImVec2(q.p.x - mn.x, q.p.y - mn.y);
+        x += mn.x;
+        y += mn.y;
+        w = std::max(1.0f, mx.x - mn.x);
+        h = std::max(1.0f, mx.y - mn.y);
+    }
+    float W = std::max(1e-3f, w), H = std::max(1e-3f, h);
+    for (auto& q : pts)
+    {
+        q.p = ImVec2(q.p.x / W, q.p.y / H);
+        q.in = ImVec2(q.in.x / W, q.in.y / H);
+        q.out = ImVec2(q.out.x / W, q.out.y / H);
+    }
+    path = pts;
+}
+
 const char* RoleName(Role r) { return kRoleNames[(int)r]; }
 bool RoleFromName(const std::string& s, Role* out)
 {
@@ -36,8 +79,24 @@ static const char* kPresetKeys[] = { "none", "fade", "slide-up", "slide-down", "
                                      "pulse", "float", "breathe", "heartbeat", "wiggle", "lift", "grow", "press", "nudge", "dim", "keyframes" };
 static const char* kPresetLabels[] = { "None", "Fade", "Slide up", "Slide down", "Slide left", "Slide right", "Pop", "Zoom", "Bounce",
                                        "Pulse", "Float", "Breathe", "Heartbeat", "Wiggle", "Lift", "Grow", "Press", "Nudge", "Dim", "Keyframes" };
-static const char* kPropKeys[] = { "x", "y", "scale", "opacity" };
-static const char* kPropLabels[] = { "Position X", "Position Y", "Scale", "Opacity" };
+static const char* kPropKeys[] = { "x", "y", "scale", "opacity", "rotation" };
+static const char* kPropLabels[] = { "Position X", "Position Y", "Scale", "Opacity", "Rotation" };
+static_assert(sizeof(kPropKeys) / sizeof(kPropKeys[0]) == fim::Prop_Count, "keyframe property names");
+static const char* kPaintKeys[] = { "none", "solid", "linear", "radial", "angular", "diamond" };
+static const char* kPaintLabels[] = { "None", "Solid", "Linear", "Radial", "Angular", "Diamond" };
+const char* PaintTypeKey(int t) { return t >= 0 && t < 6 ? kPaintKeys[t] : "solid"; }
+static const char* kBlendKeys[] = { "normal", "plus-lighter", "multiply", "screen", "darken", "lighten", "exclusion", "plus-darker" };
+static const char* kBlendLabels[] = { "Normal", "Plus lighter", "Multiply", "Screen", "Darken", "Lighten", "Exclusion", "Plus darker" };
+const int kBlendMenu[8] = { 0, 4, 2, 7, 5, 3, 1, 6 };
+const char* BlendModeKey(int b) { return b >= 0 && b < 8 ? kBlendKeys[b] : "normal"; }
+const char* BlendModeLabel(int b) { return b >= 0 && b < 8 ? kBlendLabels[b] : "Normal"; }
+int BlendModeFromKey(const std::string& s)
+{
+    if (s == "add") return 1;
+    for (int i = 0; i < 8; i++) if (s == kBlendKeys[i]) return i;
+    return 0;
+}
+const char* PaintTypeLabel(int t) { return t >= 0 && t < 6 ? kPaintLabels[t] : "Solid"; }
 static const char* kEasingKeys[] = { "linear", "ease-in", "ease-out", "ease-in-out", "back-out", "elastic-out", "bounce-out", "spring", "bezier" };
 static const char* kEasingLabels[] = { "Linear", "Ease in", "Ease out", "Ease in-out", "Back out", "Elastic", "Bounce", "Spring", "Custom bezier" };
 static const char* kTriggerKeys[] = { "appear", "hover", "press", "active", "loop" };
@@ -324,12 +383,47 @@ bool Document::IsAncestor(Node* a, Node* n)
 
 static json ColorJ(ImVec4 c) { return ColorToHex(c); }
 
+std::vector<GradStop> Paint::Stops() const
+{
+    if (stops.size() >= 2) return stops;
+    return { { 0.0f, c0 }, { 1.0f, c1 } };
+}
+
+void Paint::SetStops(std::vector<GradStop> s)
+{
+    for (auto& q : s) q.pos = std::clamp(q.pos, 0.0f, 1.0f);
+    std::stable_sort(s.begin(), s.end(), [](const GradStop& a, const GradStop& b) { return a.pos < b.pos; });
+    if (s.empty()) s = { { 0.0f, c0 }, { 1.0f, c1 } };
+    if (s.size() == 1) s.push_back({ 1.0f, s[0].color });
+    c0 = s.front().color;
+    c1 = s.back().color;
+    if (s.size() == 2 && s[0].pos == 0.0f && s[1].pos == 1.0f) stops.clear();
+    else stops = s;
+}
+
+void Paint::SyncEnds()
+{
+    if (stops.size() < 2) return;
+    stops.front().color = c0;
+    stops.back().color = c1;
+}
+
 static json PaintJ(const Paint& p)
 {
     if (p.type == 0) return "none";
     if (p.type == 1) return ColorJ(p.c0);
-    return json{ { "type", "linear" }, { "from", ColorJ(p.c0) }, { "to", ColorJ(p.c1) }, { "angle", p.angle } };
+    json j{ { "type", PaintTypeKey(p.type) }, { "from", ColorJ(p.c0) }, { "to", ColorJ(p.c1) } };
+    if (p.type == 2 || p.type == 4 || p.angle != 90.0f) j["angle"] = p.angle;
+    if (p.stops.size() >= 2)
+    {
+        json s = json::array();
+        for (auto& q : p.stops) s.push_back({ std::round(q.pos * 1000.0f) / 1000.0f, ColorJ(q.color) });
+        j["stops"] = s;
+    }
+    return j;
 }
+
+static float Num(const json& v, float def);
 
 static Paint PaintFromJ(const json& v, Paint def)
 {
@@ -338,12 +432,25 @@ static Paint PaintFromJ(const json& v, Paint def)
     if (v.is_object())
     {
         std::string t = v.value("type", "solid");
-        if (t == "linear" || t == "gradient" || v.contains("from"))
+        int gt = t == "radial" ? 3 : t == "angular" || t == "conic" ? 4 : t == "diamond" ? 5 : 2;
+        if (gt > 2 || t == "linear" || t == "gradient" || v.contains("from"))
         {
-            p.type = 2;
+            p.type = gt;
             p.c0 = ParseColor(v.value("from", json("#FFFFFF")), ImVec4(1, 1, 1, 1));
             p.c1 = ParseColor(v.value("to", json("#000000")), ImVec4(0, 0, 0, 1));
             p.angle = v.value("angle", 90.0f);
+            // "stops": [ [0, "#FF0000"], [0.5, "#00FF00"], ... ] or [ { "pos": 0, "color": "#FF0000" }, ... ]
+            if (v.contains("stops") && v["stops"].is_array())
+            {
+                std::vector<GradStop> s;
+                for (auto& q : v["stops"])
+                {
+                    if (q.is_array() && q.size() >= 2) s.push_back({ Num(q[0], 0), ParseColor(q[1], ImVec4(1, 1, 1, 1)) });
+                    else if (q.is_object()) s.push_back({ Num(q.value("pos", json(q.value("position", json(0)))), 0), ParseColor(q.value("color", json("#FFFFFF")), ImVec4(1, 1, 1, 1)) });
+                }
+                if (s.size() >= 2) p.SetStops(s);
+            }
+            else p.stops.clear();
         }
         else
         {
@@ -363,6 +470,8 @@ static bool PaintEq(const Paint& a, const Paint& b)
     if (a.type == 0) return true;
     auto eq = [](ImVec4 x, ImVec4 y) { return ColorToHex(x) == ColorToHex(y); };
     if (a.type == 1) return eq(a.c0, b.c0);
+    if (a.stops.size() != b.stops.size()) return false;
+    for (size_t i = 0; i < a.stops.size(); i++) if (a.stops[i].pos != b.stops[i].pos || !eq(a.stops[i].color, b.stops[i].color)) return false;
     return eq(a.c0, b.c0) && eq(a.c1, b.c1) && a.angle == b.angle;
 }
 
@@ -374,6 +483,7 @@ static Node DefaultFor(NodeType t)
     if (t == NodeType::Group) { d.fill.type = 0; d.clip = false; }
     if (t == NodeType::Line) { d.fill.type = 0; d.stroke = Paint{ 1, ImVec4(0, 0, 0, 1) }; d.strokeWidth = 1; d.h = 0; }
     if (t == NodeType::Image || t == NodeType::Vector) { d.fill.type = 0; }
+    if (t == NodeType::Path) { d.fill = Paint{ 1, ImVec4(0.85f, 0.85f, 0.85f, 1) }; d.stroke = Paint{ 1, ImVec4(0, 0, 0, 1) }; d.strokeWidth = 1; }
     return d;
 }
 
@@ -395,6 +505,7 @@ json NodeToJson(const Node* n)
     if (!n->name.empty()) j["name"] = n->name;
     auto r1 = [](float v) { return std::round(v * 100.0f) / 100.0f; };
     j["x"] = r1(n->x); j["y"] = r1(n->y); j["w"] = r1(n->w); j["h"] = r1(n->h);
+    if (n->rotation != 0.0f) j["rotation"] = r1(n->rotation);
     if (n->opacity != 1.0f) j["opacity"] = r1(n->opacity);
     if (!n->visible) j["visible"] = false;
     if (n->locked) j["locked"] = true;
@@ -408,7 +519,7 @@ json NodeToJson(const Node* n)
     else if (!PaintEq(n->fill, d.fill)) j["fill"] = PaintJ(n->fill);
     if (n->strokeHidden) { Paint p = n->stroke; p.type = n->strokeHidden; j["stroke"] = PaintJ(p); j["strokeHidden"] = true; }
     else if (!PaintEq(n->stroke, d.stroke)) j["stroke"] = PaintJ(n->stroke);
-    if (n->blend) j["blend"] = n->blend == 1 ? "plus-lighter" : n->blend == 2 ? "multiply" : "screen";
+    if (n->blend) j["blend"] = BlendModeKey(n->blend);
     if (n->stroke.type && n->strokeWidth != 1.0f) j["strokeWidth"] = n->strokeWidth;
     if (n->stroke.type && n->strokeAlign != 0) j["strokeAlign"] = n->strokeAlign == 1 ? "center" : "outside";
     if (n->effect.type)
@@ -420,10 +531,17 @@ json NodeToJson(const Node* n)
                        { "dispersion", n->glass.dispersion }, { "light", n->glass.lightAngle }, { "saturation", n->glass.saturation }, { "tint", ColorJ(n->glass.tint) } };
     if (n->texture.on)
     {
-        static const char* blends[] = { "normal", "add", "multiply", "screen" };
+        static const char* blends[] = { "normal", "add", "multiply", "screen", "darken", "lighten", "exclusion", "plus-darker" };
         static const char* fits[] = { "fill", "fit", "tile" };
-        j["texture"] = { { "asset", n->texture.asset }, { "opacity", n->texture.opacity }, { "blend", blends[n->texture.blend & 3] }, { "fit", fits[std::clamp(n->texture.fit, 0, 2)] },
+        j["texture"] = { { "asset", n->texture.asset }, { "opacity", n->texture.opacity }, { "blend", blends[n->texture.blend & 7] }, { "fit", fits[std::clamp(n->texture.fit, 0, 2)] },
                          { "scale", n->texture.scale }, { "speed", { n->texture.speed.x, n->texture.speed.y } } };
+        if (n->texture.Adjusted() && !n->texture.source.empty())
+        {
+            json a = json::array();
+            for (float v : n->texture.adjust) a.push_back(std::round(v * 100.0f) / 100.0f);
+            j["texture"]["adjust"] = a;
+            j["texture"]["source"] = n->texture.source;
+        }
     }
     if (n->anim.preset)
     {
@@ -457,6 +575,19 @@ json NodeToJson(const Node* n)
         if (n->alignH) j["align"] = n->alignH == 1 ? "center" : "right";
         if (n->alignV) j["valign"] = n->alignV == 1 ? "middle" : "bottom";
         j["textSizing"] = n->textSizing == 0 ? "fixed" : n->textSizing == 1 ? "auto-width" : "auto-height";
+    }
+    if (n->type == NodeType::Path)
+    {
+        // px relative to the box: [x, y] or [x, y, inX, inY, outX, outY]
+        json pts = json::array();
+        auto r2 = [](float v) { return std::round(v * 100.0f) / 100.0f; };
+        for (auto& q : n->PathPx())
+        {
+            if (q.in.x == 0 && q.in.y == 0 && q.out.x == 0 && q.out.y == 0) pts.push_back({ r2(q.p.x), r2(q.p.y) });
+            else pts.push_back({ r2(q.p.x), r2(q.p.y), r2(q.in.x), r2(q.in.y), r2(q.out.x), r2(q.out.y) });
+        }
+        j["points"] = pts;
+        if (!n->closed) j["closed"] = false;
     }
     if (n->type == NodeType::Image || n->type == NodeType::Vector)
     {
@@ -538,6 +669,11 @@ void ApplyProps(Node* n, const json& p, Document* doc)
         else if (k == "w" || k == "width") n->w = std::max(0.0f, Num(v, n->w));
         else if (k == "h" || k == "height") n->h = std::max(0.0f, Num(v, n->h));
         else if (k == "opacity") n->opacity = std::clamp(Num(v, n->opacity), 0.0f, 1.0f);
+        else if (k == "rotation" || k == "rotate")
+        {
+            float r = std::fmod(Num(v, n->rotation), 360.0f);
+            n->rotation = r > 180.0f ? r - 360.0f : r <= -180.0f ? r + 360.0f : r;
+        }
         else if (k == "visible") n->visible = Num(v, 1) != 0;
         else if (k == "locked") n->locked = Num(v, 0) != 0;
         else if (k == "expanded") n->expanded = Num(v, 1) != 0;
@@ -549,7 +685,7 @@ void ApplyProps(Node* n, const json& p, Document* doc)
         else if (k == "fill" || k == "color" || k == "background") n->fill = PaintFromJ(v, n->fill);
         else if (k == "stroke" || k == "border") { n->stroke = PaintFromJ(v, n->stroke); if (n->stroke.type == 2) n->stroke.type = 1; }
         else if (k == "strokeWidth") n->strokeWidth = Num(v, n->strokeWidth);
-        else if (k == "blend" && v.is_string()) n->blend = IndexOfStr(v.get<std::string>(), { "normal", "plus-lighter", "multiply", "screen" }, 0);
+        else if (k == "blend" && v.is_string()) n->blend = BlendModeFromKey(v.get<std::string>());
         else if (k == "strokeAlign" && v.is_string()) n->strokeAlign = IndexOfStr(v.get<std::string>(), { "inside", "center", "outside" }, 0);
         else if (k == "shadow")
         {
@@ -599,10 +735,14 @@ void ApplyProps(Node* n, const json& p, Document* doc)
                 t.on = true;
                 t.asset = v.value("asset", t.asset);
                 t.opacity = std::clamp(Num(v.value("opacity", json(t.opacity)), t.opacity), 0.0f, 1.0f);
-                if (v.contains("blend") && v["blend"].is_string()) t.blend = IndexOfStr(v["blend"].get<std::string>(), { "normal", "add", "multiply", "screen" }, 0);
+                if (v.contains("blend") && v["blend"].is_string()) t.blend = BlendModeFromKey(v["blend"].get<std::string>());
                 if (v.contains("fit") && v["fit"].is_string()) t.fit = IndexOfStr(v["fit"].get<std::string>(), { "fill", "fit", "tile" }, 2);
                 t.scale = std::max(0.01f, Num(v.value("scale", json(t.scale)), t.scale));
                 if (v.contains("speed") && v["speed"].is_array() && v["speed"].size() >= 2) t.speed = ImVec2(Num(v["speed"][0], 0), Num(v["speed"][1], 0));
+                // "adjust": [exposure, contrast, saturation, temperature, tint, highlights, shadows], -1..1, with "source": original asset
+                if (v.contains("adjust") && v["adjust"].is_array())
+                    for (int i = 0; i < 7 && i < (int)v["adjust"].size(); i++) t.adjust[i] = std::clamp(Num(v["adjust"][i], 0), -1.0f, 1.0f);
+                t.source = v.value("source", t.source);
             }
         }
         else if (k == "animation")
@@ -644,7 +784,7 @@ void ApplyProps(Node* n, const json& p, Document* doc)
                     t.prop = p;
                     for (auto& k : *it)
                     {
-                        fim::Keyframe kf{ 0, p >= fim::Prop_Scale ? 1.0f : 0.0f, a.easing };
+                        fim::Keyframe kf{ 0, fim::AnimPropDefault(p), a.easing };
                         if (k.is_array() && k.size() >= 2) { kf.time = Num(k[0], 0); kf.value = Num(k[1], kf.value); if (k.size() > 2 && k[2].is_string()) kf.easing = IndexOfStr(k[2].get<std::string>(), { "linear", "ease-in", "ease-out", "ease-in-out", "back-out", "elastic-out", "bounce-out", "spring", "bezier" }, kf.easing); }
                         else if (k.is_object())
                         {
@@ -736,6 +876,37 @@ void ApplyProps(Node* n, const json& p, Document* doc)
     if (p.contains("fillHidden") && Num(p["fillHidden"], 0) != 0 && n->fill.type) { n->fillHidden = n->fill.type; n->fill.type = 0; }
     if (p.contains("strokeHidden") && Num(p["strokeHidden"], 0) != 0 && n->stroke.type) { n->strokeHidden = n->stroke.type; n->stroke.type = 0; }
     if (n->type == NodeType::Line) n->h = 0;
+    if (p.contains("closed")) n->closed = Num(p["closed"], 1) != 0;
+    // after the loop: the points are px relative to the box, so w / h must be known
+    if (p.contains("points") && p["points"].is_array())
+    {
+        std::vector<fim::PathPoint> px;
+        for (auto& q : p["points"])
+        {
+            if (!q.is_array() || q.size() < 2) continue;
+            fim::PathPoint pt{ ImVec2(Num(q[0], 0), Num(q[1], 0)), ImVec2(0, 0), ImVec2(0, 0) };
+            if (q.size() >= 6) { pt.in = ImVec2(Num(q[2], 0), Num(q[3], 0)); pt.out = ImVec2(Num(q[4], 0), Num(q[5], 0)); }
+            px.push_back(pt);
+        }
+        // a box given in the same update keeps its size; points of a new path define it
+        bool sized = p.contains("w") || p.contains("width") || p.contains("h") || p.contains("height");
+        n->SetPathPx(px, !sized);
+    }
+}
+
+json AnimToJson(const AnimFx& a)
+{
+    Node tmp;
+    tmp.anim = a;
+    json j = NodeToJson(&tmp);
+    return j.contains("animation") ? j["animation"] : json::object();
+}
+
+AnimFx AnimFromJson(const json& j)
+{
+    Node tmp;
+    ApplyProps(&tmp, json{ { "animation", j } }, nullptr);
+    return tmp.anim;
 }
 
 std::unique_ptr<Node> NodeFromJson(const json& j, Document* doc)
@@ -879,7 +1050,7 @@ static void Arrange(Document* doc, Node* n)
 
     bool horiz = n->layout == 1;
     std::vector<Node*> items;
-    for (auto& c : n->children) if (c->visible) items.push_back(c.get());
+    for (auto& c : n->children) if (c->visible && LayoutConditionVisible(c.get())) items.push_back(c.get());
     auto mainSize = [&](Node* c) -> float& { return horiz ? c->w : c->h; };
     auto crossSize = [&](Node* c) -> float& { return horiz ? c->h : c->w; };
     auto mainPos = [&](Node* c) -> float& { return horiz ? c->x : c->y; };

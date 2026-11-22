@@ -32,8 +32,14 @@ static std::string CssColor(ImVec4 c)
 
 static std::string CssPaint(const Paint& p)
 {
+    std::string stops;
+    for (auto& s : p.Stops()) stops += ", " + CssColor(s.color) + " " + Fmt(std::round(s.pos * 1000) / 10) + "%";
     if (p.type == 2)
-        return "linear-gradient(" + Fmt(p.angle + 90.0f) + "deg, " + CssColor(p.c0) + " 0%, " + CssColor(p.c1) + " 100%)";
+        return "linear-gradient(" + Fmt(p.angle + 90.0f) + "deg" + stops + ")";
+    if (p.type == 3 || p.type == 5)   // CSS has no diamond gradient: closest-side radial
+        return std::string(p.type == 3 ? "radial-gradient(farthest-side" : "radial-gradient(closest-side") + stops + ")";
+    if (p.type == 4)
+        return "conic-gradient(from " + Fmt(p.angle + 90.0f) + "deg" + stops + ")";
     return CssColor(p.c0);
 }
 
@@ -105,6 +111,8 @@ static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChild
         o << ind << "box-shadow: " << (n->effect.type == 2 ? "inset " : "") << Px(n->effect.offset.x) << " " << Px(n->effect.offset.y) << " "
           << Px(n->effect.blur) << " " << Px(n->effect.spread) << " " << CssColor(n->effect.color) << ";\n";
     if (n->opacity < 1.0f) o << ind << "opacity: " << Fmt(n->opacity) << ";\n";
+    if (n->blend) o << ind << "mix-blend-mode: " << BlendModeKey(n->blend) << ";\n";
+    if (n->rotation != 0.0f) o << ind << "transform: rotate(" << Fmt(n->rotation) << "deg);\n";
     if (n->glass.on)
     {
         o << ind << "backdrop-filter: blur(" << Px(n->glass.blur * 0.5f) << ") saturate(" << Fmt(n->glass.saturation * 100) << "%);\n";
@@ -114,10 +122,10 @@ static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChild
     if (n->texture.on)
     {
         auto it = doc.assets.find(n->texture.asset);
-        static const char* blends[] = { "normal", "plus-lighter", "multiply", "screen" };
+
         if (it != doc.assets.end())
             o << ind << "/* texture overlay: url(" << it->second.name << ") " << (n->texture.fit == 2 ? "repeat" : "no-repeat") << ", opacity " << Fmt(n->texture.opacity)
-              << ", mix-blend-mode: " << blends[n->texture.blend & 3] << " */\n";
+              << ", mix-blend-mode: " << BlendModeKey(n->texture.blend) << " */\n";
     }
     if (n->anim.preset)
     {
@@ -147,7 +155,8 @@ static void CssKeyframes(Node* n, std::ostringstream& o, std::set<int>& done)
         for (int k = 0; k <= 20; k++)
         {
             fim::AnimValue v = fim::AnimKeyframesAt(s, n->anim.duration * k / 20.0f);
-            o << "  " << k * 5 << "% { transform: translate(" << Px(v.dx) << ", " << Px(v.dy) << ") scale(" << Fmt(v.scale) << "); opacity: " << Fmt(v.alpha) << "; }\n";
+            std::string rot = v.rot + n->rotation != 0 ? " rotate(" + Fmt(v.rot + n->rotation) + "deg)" : "";
+            o << "  " << k * 5 << "% { transform: translate(" << Px(v.dx) << ", " << Px(v.dy) << ") scale(" << Fmt(v.scale) << ")" << rot << "; opacity: " << Fmt(v.alpha) << "; }\n";
         }
         o << "}\n";
     }
@@ -203,13 +212,22 @@ static std::string SvgPaint(SvgCtx& s, const Paint& p, float x, float y, float w
     if (p.type == 0) return "none";
     if (p.type == 1) { *opacityOut = p.c0.w; return ColorToHex(ImVec4(p.c0.x, p.c0.y, p.c0.z, 1)); }
     std::string id = "g" + std::to_string(++s.counter);
+    std::string stops;
+    for (auto& q : p.Stops())
+        stops += "<stop offset=\"" + Fmt(q.pos) + "\" stop-color=\"" + ColorToHex(ImVec4(q.color.x, q.color.y, q.color.z, 1)) + "\" stop-opacity=\"" + Fmt(q.color.w) + "\"/>";
+    if (p.type == 3 || p.type == 5)   // SVG has no diamond gradient: radial
+    {
+        s.defs << "<radialGradient id=\"" << id << "\" gradientUnits=\"userSpaceOnUse\" cx=\"" << Fmt(x + w / 2) << "\" cy=\"" << Fmt(y + h / 2) << "\" r=\"" << Fmt(w / 2)
+               << "\" gradientTransform=\"translate(" << Fmt(x + w / 2) << " " << Fmt(y + h / 2) << ") scale(1 " << Fmt(w > 0 ? h / w : 1) << ") translate(" << Fmt(-(x + w / 2)) << " "
+               << Fmt(-(y + h / 2)) << ")\">" << stops << "</radialGradient>\n";
+        return "url(#" + id + ")";
+    }
+    // SVG has no angular gradient either: it falls back to a linear one in the same direction
     float a = p.angle * 3.14159265f / 180.0f;
     float cx = x + w / 2, cy = y + h / 2;
     float half = (std::fabs(std::cos(a)) * w + std::fabs(std::sin(a)) * h) / 2;
     s.defs << "<linearGradient id=\"" << id << "\" gradientUnits=\"userSpaceOnUse\" x1=\"" << Fmt(cx - std::cos(a) * half) << "\" y1=\"" << Fmt(cy - std::sin(a) * half)
-           << "\" x2=\"" << Fmt(cx + std::cos(a) * half) << "\" y2=\"" << Fmt(cy + std::sin(a) * half) << "\">"
-           << "<stop offset=\"0\" stop-color=\"" << ColorToHex(ImVec4(p.c0.x, p.c0.y, p.c0.z, 1)) << "\" stop-opacity=\"" << Fmt(p.c0.w) << "\"/>"
-           << "<stop offset=\"1\" stop-color=\"" << ColorToHex(ImVec4(p.c1.x, p.c1.y, p.c1.z, 1)) << "\" stop-opacity=\"" << Fmt(p.c1.w) << "\"/></linearGradient>\n";
+           << "\" x2=\"" << Fmt(cx + std::cos(a) * half) << "\" y2=\"" << Fmt(cy + std::sin(a) * half) << "\">" << stops << "</linearGradient>\n";
     return "url(#" + id + ")";
 }
 
@@ -240,7 +258,8 @@ static void SvgNode(Document& doc, SvgCtx& s, Node* n, float ox, float oy, std::
                << "\" flood-opacity=\"" << Fmt(n->effect.color.w) << "\"/></filter>\n";
         filter = " filter=\"url(#" + id + ")\"";
     }
-    o << "<g" << (n->opacity < 1 ? " opacity=\"" + Fmt(n->opacity) + "\"" : "") << ">\n";
+    std::string rot = n->rotation != 0 ? " transform=\"rotate(" + Fmt(n->rotation) + " " + Fmt(x + w / 2) + " " + Fmt(y + h / 2) + ")\"" : "";
+    o << "<g" << (n->opacity < 1 ? " opacity=\"" + Fmt(n->opacity) + "\"" : "") << rot << ">\n";
     float fo = 1, so = 1;
     std::string fill = SvgPaint(s, n->fill, x, y, w, h, &fo);
     std::string stroke = n->stroke.type ? SvgPaint(s, n->stroke, x, y, w, h, &so) : "none";
@@ -275,6 +294,27 @@ static void SvgNode(Document& doc, SvgCtx& s, Node* n, float ox, float oy, std::
     case NodeType::Ellipse:
         o << "<ellipse cx=\"" << Fmt(x + w / 2) << "\" cy=\"" << Fmt(y + h / 2) << "\" rx=\"" << Fmt(w / 2) << "\" ry=\"" << Fmt(h / 2) << "\"" << fillAttr << filter << "/>\n";
         break;
+    case NodeType::Path:
+    {
+        // anchors and cubic handles as an SVG path
+        auto pts = n->PathPx();
+        std::ostringstream d;
+        auto P = [&](ImVec2 q) { return Fmt(x + q.x) + " " + Fmt(y + q.y); };
+        int count = (int)pts.size(), segs = n->closed ? count : count - 1;
+        if (count) d << "M" << P(pts[0].p);
+        for (int i = 0; i < segs; i++)
+        {
+            const fim::PathPoint& s0 = pts[i];
+            const fim::PathPoint& s1 = pts[(i + 1) % count];
+            if (s0.out.x == 0 && s0.out.y == 0 && s1.in.x == 0 && s1.in.y == 0) d << "L" << P(s1.p);
+            else d << "C" << P(ImVec2(s0.p.x + s0.out.x, s0.p.y + s0.out.y)) << " " << P(ImVec2(s1.p.x + s1.in.x, s1.p.y + s1.in.y)) << " " << P(s1.p);
+        }
+        if (n->closed) d << "Z";
+        std::string f = n->closed ? fillAttr : " fill=\"none\"";
+        std::string st = n->stroke.type ? " stroke=\"" + stroke + "\" stroke-width=\"" + Fmt(sw) + "\"" + (so < 1 ? " stroke-opacity=\"" + Fmt(so) + "\"" : "") : "";
+        o << "<path d=\"" << d.str() << "\"" << f << st << filter << "/>\n";
+        break;
+    }
     case NodeType::Line:
         o << "<line x1=\"" << Fmt(x) << "\" y1=\"" << Fmt(y) << "\" x2=\"" << Fmt(x + w) << "\" y2=\"" << Fmt(y) << "\" stroke=\"" << ColorToHex(ImVec4(n->stroke.c0.x, n->stroke.c0.y, n->stroke.c0.z, 1))
           << "\" stroke-opacity=\"" << Fmt(n->stroke.c0.w) << "\" stroke-width=\"" << Fmt(n->strokeWidth) << "\"/>\n";
@@ -739,4 +779,42 @@ std::string MakeShaderAsset(Document& doc, int style, ImVec4 c0, ImVec4 c1)
     for (auto& ch : name) if (ch == ' ') ch = '_';
     std::transform(name.begin(), name.end(), name.begin(), ::tolower);
     return AddAsset(doc, 0, name, gfx::EncodePNG(rgba.data(), S, S));
+}
+
+const char* const kAdjustNames[7] = { "Exposure", "Contrast", "Saturation", "Temperature", "Tint", "Highlights", "Shadows" };
+
+std::string BakeAdjustedImage(Document& doc, const std::string& source, const float adj[7], const std::string& reuse)
+{
+    auto it = doc.assets.find(source);
+    if (it == doc.assets.end() || it->second.kind != 0) return "";
+    std::vector<unsigned char> rgba;
+    int w = 0, h = 0;
+    if (!gfx::DecodeImage(it->second.data.data(), it->second.data.size(), rgba, &w, &h)) return "";
+    float exposure = std::pow(2.0f, adj[0] * 1.5f), contrast = 1.0f + adj[1], saturation = 1.0f + adj[2];
+    auto smooth = [](float e0, float e1, float x) { float t = std::clamp((x - e0) / (e1 - e0), 0.0f, 1.0f); return t * t * (3 - 2 * t); };
+    for (size_t i = 0; i + 3 < rgba.size(); i += 4)
+    {
+        float c[3] = { rgba[i] / 255.0f, rgba[i + 1] / 255.0f, rgba[i + 2] / 255.0f };
+        for (float& v : c) v *= exposure;
+        for (float& v : c) v = (v - 0.5f) * contrast + 0.5f;
+        float l = 0.2126f * c[0] + 0.7152f * c[1] + 0.0722f * c[2];
+        for (float& v : c) v = l + (v - l) * saturation;
+        c[0] += adj[3] * 0.12f; c[2] -= adj[3] * 0.12f;                        // temperature: warm / cool
+        c[0] += adj[4] * 0.06f; c[1] -= adj[4] * 0.12f; c[2] += adj[4] * 0.06f;  // tint: magenta / green
+        l = std::clamp(0.2126f * c[0] + 0.7152f * c[1] + 0.0722f * c[2], 0.0f, 1.0f);
+        float hi = adj[5] * 0.35f * smooth(0.45f, 1.0f, l), sh = adj[6] * 0.35f * (1.0f - smooth(0.0f, 0.55f, l));
+        for (float& v : c) v += hi + sh;
+        for (int k = 0; k < 3; k++) rgba[i + k] = (unsigned char)std::lround(std::clamp(c[k], 0.0f, 1.0f) * 255.0f);
+    }
+    std::vector<unsigned char> png = gfx::EncodePNG(rgba.data(), w, h);
+    auto old = doc.assets.find(reuse);
+    if (!reuse.empty() && old != doc.assets.end() && old->second.name.rfind("adj_", 0) == 0)
+    {
+        old->second.data = std::move(png);
+        old->second.width = w;
+        old->second.height = h;
+        gfx::InvalidateAsset(reuse);
+        return reuse;
+    }
+    return AddAsset(doc, 0, "adj_" + it->second.name, std::move(png));
 }

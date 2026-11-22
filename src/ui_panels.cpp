@@ -9,6 +9,7 @@
 #include "../runtime/fimgui_runtime.h"
 #include "imgui_internal.h"
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <filesystem>
 
@@ -27,6 +28,7 @@ static Icon TypeIcon(const Node* n)
     case NodeType::Text: return Icon::Text;
     case NodeType::Image: return Icon::Image;
     case NodeType::Vector: return Icon::Vector;
+    case NodeType::Path: return Icon::Vector;
     }
     return Icon::Rect;
 }
@@ -445,11 +447,14 @@ static bool FontCombo(const char* id, std::string* family, float width)
 static bool PaintEditor(const char* id, Paint* p, float width, const ui::PickerHeader* header = nullptr)
 {
     ImGui::PushID(id);
+    ImVec4 o0 = p->c0, o1 = p->c1;
     bool ch = ui::ColorRow("##c0", &p->c0, width, header);
-    if (p->type == 2)
+    if (p->type >= 2)
     {
         ch |= ui::ColorRow("##c1", &p->c1, width);
-        ch |= ui::NumField("##ang", "", &p->angle, width * 0.5f, 1.0f, -360, 360, "\xC2\xB0", Icon::Radius);
+        // the rows show the end stops; an edit there goes into the stop list too
+        if (std::memcmp(&o0, &p->c0, sizeof(ImVec4)) || std::memcmp(&o1, &p->c1, sizeof(ImVec4))) p->SyncEnds();
+        if (p->type == 2 || p->type == 4) ch |= ui::NumField("##ang", "", &p->angle, width * 0.5f, 1.0f, -360, 360, "\xC2\xB0", Icon::Radius);
     }
     ImGui::PopID();
     return ch;
@@ -563,7 +568,7 @@ void App::DrawDesignTab()
 
     // Header: layer type, quick actions, name
     const char* typeName = multi ? "Mixed" : n->type == NodeType::Frame ? "Frame" : n->type == NodeType::Group ? "Group" : n->type == NodeType::Rect ? "Rectangle"
-        : n->type == NodeType::Ellipse ? "Ellipse" : n->type == NodeType::Line ? "Line" : n->type == NodeType::Text ? "Text" : n->type == NodeType::Image ? "Image" : "Vector";
+        : n->type == NodeType::Ellipse ? "Ellipse" : n->type == NodeType::Line ? "Line" : n->type == NodeType::Text ? "Text" : n->type == NodeType::Image ? "Image" : n->type == NodeType::Path ? "Vector path" : "Vector";
     ImGui::Dummy(ImVec2(0, U(6)));
     ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), ImGui::GetStyle().FontSizeBase + 2.0f);
     ImGui::AlignTextToFramePadding();
@@ -601,6 +606,34 @@ void App::DrawDesignTab()
     ch |= ui::NumField("x", "X", &n->x, col);
     ImGui::SameLine(x0 + col2);
     ch |= ui::NumField("y", "Y", &n->y, col);
+    if (n->type != NodeType::Line)
+    {
+        ui::SubLabel("Rotation");
+        float rot = n->rotation;
+        if (ui::NumField("rot", "", &rot, col, 1.0f, -360, 360, "\xC2\xB0", Icon::Redo))
+        {
+            float r = std::fmod(rot, 360.0f);
+            r = r > 180.0f ? r - 360.0f : r <= -180.0f ? r + 360.0f : r;
+            for (Node* q : nodes) q->rotation = r;
+            MarkDirty();
+        }
+        ImGui::SameLine(x0 + col2);
+        ui::IconGroupBg(ImGui::GetCursorScreenPos(), col);
+        float bw = col / 2;
+        ImVec2 gp = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(ImVec2(gp.x + (bw - fh) * 0.5f, gp.y));
+        if (IconButton("##rot90", Icon::Redo, false, fh, "Rotate 90\xC2\xB0 right"))
+        {
+            for (Node* q : nodes) { float r = q->rotation + 90; q->rotation = r > 180 ? r - 360 : r; }
+            MarkDirty();
+        }
+        ImGui::SetCursorScreenPos(ImVec2(gp.x + bw + (bw - fh) * 0.5f, gp.y));
+        if (IconButton("##rot0", Icon::Undo, false, fh, "Reset rotation"))
+        {
+            for (Node* q : nodes) q->rotation = 0;
+            MarkDirty();
+        }
+    }
 
     // Layout
     ui::Section("Layout");
@@ -1237,10 +1270,11 @@ void App::DrawToolbar()
     const T tools[] = {
         { Tool::Move, Icon::Move, "Move (V)" }, { Tool::Hand, Icon::Hand, "Hand (H)" },
         { Tool::Frame, Icon::Frame, "Frame (F)" }, { Tool::Rect, Icon::Rect, "Rectangle (R)" }, { Tool::Ellipse, Icon::Ellipse, "Ellipse (O)" },
-        { Tool::Line, Icon::Line, "Line (L)" }, { Tool::Text, Icon::Text, "Text (T)" },
+        { Tool::Line, Icon::Line, "Line (L)" }, { Tool::Pen, Icon::Vector, "Pen (P): click for corners, drag for curves, click the first point to close" },
+        { Tool::Text, Icon::Text, "Text (T)" },
     };
     float bs = U(32);
-    float width = bs * 11 + U(4) * 10 + U(16) + U(20);
+    float width = bs * 12 + U(4) * 11 + U(16) + U(20);
     ImVec2 pos((canvasMin.x + canvasMax.x - width) * 0.5f, canvasMax.y - h - U(16));
     ImGui::SetNextWindowPos(pos);
     ImGui::SetNextWindowSize(ImVec2(width, h));
@@ -1253,7 +1287,7 @@ void App::DrawToolbar()
     ImDrawList* bg = ImGui::GetBackgroundDrawList();
     (void)bg;
     ImGui::Begin("##toolbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < 8; i++)
     {
         if (i) ImGui::SameLine(0, i == 2 ? U(10) : U(4));
         ImGui::PushID(i);
@@ -1570,6 +1604,14 @@ void App::HandleShortcuts()
     if (shift && P(ImGuiKey_1)) { ZoomToFit(false); return; }
     if (shift && P(ImGuiKey_Apostrophe)) { pixelGrid = !pixelGrid; Toast(pixelGrid ? "Pixel grid: on (from 400%)" : "Pixel grid: off"); return; }
     if (shift && P(ImGuiKey_2)) { ZoomToFit(true); return; }
+    // pen / path editing keys first
+    if (!penId.empty() && (P(ImGuiKey_Enter) || P(ImGuiKey_Escape))) { FinishPen(false); tool = Tool::Move; return; }
+    if (!pathEditId.empty())
+    {
+        if (P(ImGuiKey_Enter) || P(ImGuiKey_Escape)) { pathEditId.clear(); pathSelPt = -1; return; }
+        if (P(ImGuiKey_Delete) || P(ImGuiKey_Backspace)) { DeletePathPoint(); return; }
+    }
+    if (P(ImGuiKey_P)) tool = Tool::Pen;
     if (P(ImGuiKey_V)) tool = Tool::Move;
     if (P(ImGuiKey_H)) tool = Tool::Hand;
     if (P(ImGuiKey_F) || P(ImGuiKey_A)) tool = Tool::Frame;

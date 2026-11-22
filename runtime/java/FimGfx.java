@@ -10,6 +10,8 @@ public interface FimGfx {
     void pop();
     void translate(float x, float y);
     void scale(float s);
+    /** Turns everything drawn after it (until pop) by degrees, clockwise, around the current origin. */
+    void rotate(float degrees);
     /** Solid rectangle. */
     void fill(float x0, float y0, float x1, float y1, int argb);
     /** Whole texture (assets/MODID/PATH, texW x texH pixels) stretched over the rect. */

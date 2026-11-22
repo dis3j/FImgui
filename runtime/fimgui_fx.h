@@ -35,7 +35,8 @@ namespace fim
         // Draws the blurred / refracted content that is already behind the rect.
         void DrawBackdrop(ImDrawList* dl, ImVec2 a, ImVec2 b, const float radius[4], const Backdrop& p, float alpha = 1.0f, bool ellipse = false);
 
-        enum Blend { Blend_Normal = 0, Blend_Add = 1, Blend_Multiply = 2, Blend_Screen = 3 };
+        // Add is Figma's "Plus lighter". Modes that need the backdrop in a shader (overlay, color burn...) are not available.
+        enum Blend { Blend_Normal = 0, Blend_Add = 1, Blend_Multiply = 2, Blend_Screen = 3, Blend_Darken = 4, Blend_Lighten = 5, Blend_Exclusion = 6, Blend_PlusDarker = 7, Blend_Count = 8 };
         // Image with a blend mode; wrap = repeat UVs outside 0..1 (tiling).
         void DrawTexture(ImDrawList* dl, ImTextureRef tex, ImVec2 a, ImVec2 b, const float radius[4], ImVec2 uv0, ImVec2 uv1,
                          ImU32 tint, int blend, bool wrap, float alpha = 1.0f);

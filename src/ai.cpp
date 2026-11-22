@@ -23,10 +23,10 @@ Order operations so the result looks good while being built: background frame fi
 
 # Node model (JSON)
 Coordinates x,y are RELATIVE TO THE PARENT's top-left corner. Sizes w,h in px. Top-level frames are placed on an infinite canvas; each top-level frame becomes one ImGui window in the exported code.
-Common: id (short, unique, snake_case, e.g. "tab_aim"), type, name (human readable, used for layer names and C++ identifiers), x, y, w, h, opacity (0..1), visible.
-type: "frame" (container, clips children by default; "clip":false to disable), "group", "rect", "ellipse", "line" (horizontal, uses stroke), "text", "image", "vector".
+Common: id (short, unique, snake_case, e.g. "tab_aim"), type, name (human readable, used for layer names and C++ identifiers), x, y, w, h, rotation (degrees, clockwise, around the center), opacity (0..1), visible.
+type: "frame" (container, clips children by default; "clip":false to disable), "group", "rect", "ellipse", "line" (horizontal, uses stroke), "text", "image", "vector" (SVG asset), "path" (pen shape: "points":[[x,y],[x,y,inX,inY,outX,outY],...] in px relative to the box, handles are offsets from the point, "closed":true|false; uses fill and stroke).
 radius: number or [tl,tr,br,bl].
-fill: "#RRGGBB" | "#RRGGBBAA" | "none" | {"type":"linear","from":"#..","to":"#..","angle":90}  (angle 0 = left->right, 90 = top->bottom). For text, fill is the text color.
+fill: "#RRGGBB" | "#RRGGBBAA" | "none" | {"type":"linear|radial|angular|diamond","from":"#..","to":"#..","angle":90}  (linear: angle 0 = left->right, 90 = top->bottom; angular: start angle). More stops: "stops":[[0,"#.."],[0.4,"#.."],[1,"#.."]]. For text, fill is the text color.
 stroke: color | "none"; strokeWidth; strokeAlign: "inside"|"center"|"outside".
 shadow: {"type":"drop"|"inner","x":0,"y":4,"blur":16,"spread":0,"color":"#00000066"} or "none".
 Text: text, font (family, default "Inter"), fontStyle ("Regular","Medium","SemiBold","Bold"), fontSize, lineHeight (px, optional), align ("left","center","right"), valign ("top","middle","bottom"), textSizing ("auto-width" = size follows text [default], "auto-height" = fixed width + wrap, "fixed"). Text may contain placeholders like "FOV: {fov}" or "{smooth:%.1f}" that show a state variable.
@@ -35,7 +35,7 @@ Auto layout (frames): layout ("horizontal"|"vertical"), gap, padding (number | [
 # Effects (frames, rectangles, ellipses)
 blur: 16 -> background blur of whatever is behind the layer (frosted panel). Combine with a semi-transparent fill such as "#15151ACC".
 glass: {"blur":8,"refraction":0.7,"thickness":20,"highlight":0.75,"dispersion":0.3,"light":-45,"saturation":1.5,"tint":"#FFFFFF0D"} -> Apple-style liquid glass (refraction and a specular rim at the edge). Keep the fill almost transparent and put colorful content (gradients, images) behind it, otherwise it has nothing to refract.
-texture: {"asset":"<asset id from the document>","opacity":0.25,"blend":"normal|add|multiply|screen","fit":"tile|fill|fit","scale":1,"speed":[0,0]} -> overlay an image / GIF / video on the layer. Only use asset ids listed in the document, or "pattern:noise" / "pattern:scanlines" / "pattern:grid" / "pattern:stripes" for a generated tileable pattern (film grain: noise, opacity 0.06-0.12, blend screen or normal).
+texture: {"asset":"<asset id from the document>","opacity":0.25,"blend":"normal|add|multiply|screen|darken|lighten|exclusion|plus-darker","fit":"tile|fill|fit","scale":1,"speed":[0,0]} -> overlay an image / GIF / video on the layer. Only use asset ids listed in the document, or "pattern:noise" / "pattern:scanlines" / "pattern:grid" / "pattern:stripes" for a generated tileable pattern (film grain: noise, opacity 0.06-0.12, blend screen or normal).
 
 # Animation (any layer)
 animation: {"preset":"slide-up","duration":0.45,"delay":0.05,"easing":"ease-out","distance":16}
@@ -46,8 +46,8 @@ easing: linear, ease-in, ease-out, ease-in-out, back-out, elastic-out, bounce-ou
 "stagger": 0.05 on a container with an entrance preset animates its children one after another (great for lists of rows and tab pages).
 keyframes (a custom timeline, like After Effects): {"preset":"keyframes","trigger":"appear|loop|hover|press|active","duration":1.2,
  "keyframes":{"x":[{"t":0,"v":-40,"ease":"ease-out"},{"t":0.5,"v":0}],"y":[...],"scale":[{"t":0,"v":0.8,"ease":"back-out"},{"t":0.4,"v":1}],"opacity":[{"t":0,"v":0},{"t":0.3,"v":1}]}}
- x / y are offsets in px from the layout position, scale a factor, opacity 0..1; "ease" shapes the segment that starts at that key; duration is the timeline length.
-blend (rect, frame, ellipse): "normal" | "plus-lighter" | "multiply" | "screen" - blend mode of the fill.
+ x / y are offsets in px from the layout position, scale a factor, opacity 0..1, "rotation" degrees (added to the layer rotation); "ease" shapes the segment that starts at that key; duration is the timeline length.
+blend (rect, frame, ellipse, path): "normal" | "darken" | "multiply" | "plus-darker" | "lighten" | "screen" | "plus-lighter" | "exclusion" - blend mode of the fill.
 Use motion with taste: short entrances (0.3-0.5 s) on pages/cards, lift or grow on buttons and tabs, press on buttons.
 
 # Interactivity (becomes real ImGui behaviour in the exported C++)

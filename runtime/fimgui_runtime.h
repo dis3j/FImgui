@@ -6,15 +6,20 @@
 
 namespace fim
 {
-    enum PaintType { Paint_None = 0, Paint_Solid = 1, Paint_Linear = 2 };
+    enum PaintType { Paint_None = 0, Paint_Solid = 1, Paint_Linear = 2, Paint_Radial = 3, Paint_Angular = 4, Paint_Diamond = 5 };
+
+    struct GradientStop { float pos; ImU32 col; };   // pos 0..1, sorted
 
     struct Paint
     {
         int   type  = Paint_None;
         ImU32 c0    = 0;      // solid color / gradient start
         ImU32 c1    = 0;      // gradient end
-        float angle = 90.0f;  // gradient direction in degrees (0 = left->right, 90 = top->bottom)
+        float angle = 90.0f;  // linear: direction in degrees (0 = left->right, 90 = top->bottom); angular: start angle
+        const GradientStop* stops = nullptr;   // optional: more than two stops (c0 / c1 are then ignored)
+        int   stopCount = 0;
     };
+    ImU32 GradientColorAt(const Paint& p, float t);   // gradient color at position 0..1
 
     enum ShadowType { Shadow_None = 0, Shadow_Drop = 1, Shadow_Inner = 2 };
 
@@ -44,6 +49,32 @@ namespace fim
     void  DrawShadow(ImDrawList* dl, ImVec2 a, ImVec2 b, const float r[4], const Shadow& s, float scale = 1.0f, float alpha = 1.0f, bool ellipse = false);
     void  DrawLine(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 col, float thickness, float alpha = 1.0f);
     void  DrawImage(ImDrawList* dl, ImTextureRef tex, ImVec2 a, ImVec2 b, const float r[4], ImVec2 uv0 = ImVec2(0, 0), ImVec2 uv1 = ImVec2(1, 1), ImU32 tint = IM_COL32_WHITE, float alpha = 1.0f);
+
+    // Vector path (pen tool): anchors in box units (0..1 over a-b), handles as offsets from the anchor (0 = sharp corner).
+    struct PathPoint { ImVec2 p, in, out; };
+    // The outline with its curves flattened, in screen space.
+    void  PathOutline(ImVec2 a, ImVec2 b, const PathPoint* pts, int count, bool closed, ImVector<ImVec2>& out);
+    // Fill (closed paths) and stroke; thickness 0 = no stroke.
+    void  DrawPath(ImDrawList* dl, ImVec2 a, ImVec2 b, const PathPoint* pts, int count, bool closed, const Paint& fill, ImU32 stroke, float thickness, float alpha = 1.0f);
+
+    // Rotation: everything drawn between RotateBegin and RotateEnd turns by 'degrees' (clockwise) around 'center'.
+    int   RotateBegin(ImDrawList* dl);
+    void  RotateEnd(ImDrawList* dl, int begin, ImVec2 center, float degrees);
+
+    // Auto layout for frames whose children appear and disappear with state ("Show when"): hidden items take no space.
+    // Items are in/out: w / h (fill items change), x / y relative to the frame.
+    struct LayoutItem { float w, h; bool visible; bool fillMain; bool fillCross; float x, y; };
+    struct LayoutSpec
+    {
+        bool  horizontal = true;
+        float gap = 8.0f;
+        float pad[4] = { 0, 0, 0, 0 };    // left, top, right, bottom
+        int   alignMain = 0;              // 0 start, 1 center, 2 end, 3 space between
+        int   alignCross = 0;             // 0 start, 1 center, 2 end, 3 stretch
+        bool  hugMain = false, hugCross = false;
+    };
+    // *w / *h: the frame size; hugging axes are updated.
+    void  AutoLayout(LayoutItem* items, int count, const LayoutSpec& spec, float* w, float* h);
 
     // Text box: lines are wrapped to the box width when 'wrap' is set; lineHeight is in pixels (0 = font default).
     void  DrawText(ImDrawList* dl, ImFont* font, float size, ImVec2 a, ImVec2 b, const char* text, ImU32 col,
@@ -88,7 +119,7 @@ namespace fim
     enum Easing { Ease_Linear, Ease_In, Ease_Out, Ease_InOut, Ease_BackOut, Ease_ElasticOut, Ease_BounceOut, Ease_Spring, Ease_Bezier, Ease_Count };
 
     // Keyframe tracks (Anim_Keyframes). X / Y are offsets in px, Scale a factor, Opacity 0..1.
-    enum AnimProp { Prop_X, Prop_Y, Prop_Scale, Prop_Opacity, Prop_Count };
+    enum AnimProp { Prop_X, Prop_Y, Prop_Scale, Prop_Opacity, Prop_Rotation, Prop_Count };   // rotation in degrees
     struct Keyframe { float time; float value; int easing; };   // easing shapes the segment that starts at this key
     struct KeyTrack { int prop; const Keyframe* keys; int count; };
 
@@ -107,7 +138,12 @@ namespace fim
         int   trackCount = 0;
     };
 
-    struct AnimValue { float dx = 0, dy = 0, scale = 1, alpha = 1; };
+    struct AnimValue
+    {
+        float dx = 0, dy = 0, scale = 1, alpha = 1, rot = 0;
+        bool  IsIdentity() const { return dx == 0 && dy == 0 && scale == 1 && alpha == 1 && rot == 0; }
+    };
+    float     AnimPropDefault(int prop);                                // 1 for scale and opacity, else 0
 
     int       AnimCategory(int preset);                                 // 0 entrance, 1 loop, 2 interaction
     int       AnimCategoryOf(const AnimSpec& s);                        // same, keyframes resolved by their trigger

@@ -31,6 +31,9 @@ struct VarStore
 
 // Values used to measure auto-sized texts with {var} placeholders.
 extern const VarStore* g_textVars;
+// State auto layout is computed for: layers that "Show when" hides take no space. nullptr = every layer counts
+// (editor with "Show all conditional layers").
+extern const VarStore* g_layoutVars;
 
 std::vector<VarInfo> CollectVars(Document& doc);
 void EnsureVars(Document& doc, VarStore& vars);
@@ -64,9 +67,22 @@ struct RenderCtx
     double time = 0.0;
     int frame = 0;
     double timeline = -1.0;                    // >= 0: keyframe animations show this timeline time (seconds)
+    int rotated = 0;                           // inside a rotated layer: axis-aligned clipping is skipped
 };
 
 void RenderNode(RenderCtx& ctx, Node* n, ImVec2 parentWorld, float parentAlpha = 1.0f, const AnimFx* inherited = nullptr, float extraDelay = 0.0f);
 void RenderDocument(RenderCtx& ctx);
-// Effective world rect of a node after slider-part adjustments.
+// Effective world rect of a node after slider-part adjustments (before rotation).
 void NodeWorldRect(Node* n, const VarStore* vars, ImVec2* a, ImVec2* b);
+
+// Rotation: a layer turns around its center, together with its children; the editor ignores animations here.
+ImVec2 RotatePoint(ImVec2 p, ImVec2 c, float degrees);
+float  NodeWorldRotation(const Node* n);   // own rotation + all ancestors'
+bool   HasRotation(const Node* n);         // the node or an ancestor is rotated
+// World point -> the unrotated world frame of n (selfToo = false: of n's parent), and back.
+ImVec2 WorldToNode(Node* n, const VarStore* vars, ImVec2 w, bool selfToo = true);
+ImVec2 NodeToWorld(Node* n, const VarStore* vars, ImVec2 p, bool selfToo = true);
+// Corners tl, tr, br, bl of the node on the page (rotations applied).
+void   NodeWorldQuad(Node* n, const VarStore* vars, ImVec2 q[4]);
+// Axis-aligned bounds of NodeWorldQuad.
+void   NodeWorldBounds(Node* n, const VarStore* vars, ImVec2* a, ImVec2* b);

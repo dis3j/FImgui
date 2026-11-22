@@ -93,6 +93,7 @@ namespace
             return n->fill.type || n->stroke.type || n->effect.type || n->blur.on || n->glass.on || n->texture.on || n->hasHover || n->hasActive;
         case NodeType::Image: case NodeType::Vector: return true;
         case NodeType::Line: return n->stroke.type != 0;
+        case NodeType::Path: return n->fill.type || n->stroke.type;
         default: return false;
         }
     }
@@ -259,6 +260,52 @@ namespace
             return out.empty() ? "\"\"" : out;
         }
 
+        // ---- auto layout at runtime (frames whose children appear / disappear with state)
+        std::map<const Node*, std::string> layoutSym;   // frame -> "lyN": arrays lyNx / lyNy / lyNw / lyNh, size lyNs[0..1]
+        std::map<const Node*, int> layoutIndex;
+        int rotDepth = 0;
+
+        bool DynLayout(const Node* n)
+        {
+            if (n->type != NodeType::Frame || !n->layout) return false;
+            for (auto& c : n->children)
+                if (c->visible && (!Cond(c.get()).empty() || DynSize(c.get()))) return true;
+            return false;
+        }
+        bool DynSize(const Node* n) { return (n->hugW || n->hugH) && DynLayout(n); }
+
+        void EmitLayout(Node* n)
+        {
+            if (layoutSym.count(n)) return;
+            for (auto& c : n->children) if (c->visible && DynLayout(c.get())) EmitLayout(c.get());
+            std::string ly = "ly" + std::to_string(++counter);
+            bool horiz = n->layout == 1;
+            std::string ws, hs, vis, fm, fc;
+            int i = 0;
+            for (auto& cp : n->children)
+            {
+                Node* c = cp.get();
+                if (!c->visible) continue;
+                std::string cond = Cond(c);
+                bool ds = DynSize(c);
+                auto add = [](std::string& list, const std::string& v) { list += (list.empty() ? "" : ", ") + v; };
+                add(ws, ds ? layoutSym[c] + "s[0]" : JF(c->w));
+                add(hs, ds ? layoutSym[c] + "s[1]" : JF(c->h));
+                add(vis, cond.empty() ? "true" : cond);
+                add(fm, (horiz ? c->fillW : c->fillH) ? "true" : "false");
+                add(fc, (horiz ? c->fillH : c->fillW) ? "true" : "false");
+                layoutIndex[c] = i++;
+            }
+            L("// auto layout of " + (n->name.empty() ? std::string("frame") : n->name) + " (layers hidden by state take no space)");
+            L("float[] " + ly + "x = new float[" + std::to_string(i) + "], " + ly + "y = new float[" + std::to_string(i) + "], " + ly + "w = { " + ws + " }, " + ly + "h = { " + hs + " };");
+            L("float[] " + ly + "s = { " + JF(n->w) + ", " + JF(n->h) + " };");
+            L("FimUi.autoLayout(" + ly + "x, " + ly + "y, " + ly + "w, " + ly + "h, new boolean[] { " + vis + " }, new boolean[] { " + fm + " }, new boolean[] { " + fc + " }, " +
+              (horiz ? "true" : "false") + ", " + JF(n->gap) + ", " + JF(n->pad[0]) + ", " + JF(n->pad[1]) + ", " + JF(n->pad[2]) + ", " + JF(n->pad[3]) + ", " +
+              std::to_string(n->alignMain) + ", " + std::to_string(n->alignCross) + ", " + ((horiz ? n->hugW : n->hugH) ? "true" : "false") + ", " +
+              ((horiz ? n->hugH : n->hugW) ? "true" : "false") + ", " + ly + "s);");
+            layoutSym[n] = ly;
+        }
+
         // ---- nodes
         void Emit(Node* n, const std::string& px, const std::string& py, const std::string& pa, bool isRoot, const AnimFx* inherited, float extraDelay)
         {
@@ -275,6 +322,14 @@ namespace
             NodeWorldRect(n, &restState, &wa, &wb);
             if (n->parent && !isRoot) NodeWorldRect(n->parent, &restState, &pa0, &pb0);
             float X = isRoot ? 0 : wa.x - pa0.x, Y = isRoot ? 0 : wa.y - pa0.y, W = wb.x - wa.x, H = wb.y - wa.y;
+            if (DynLayout(n)) EmitLayout(n);
+            std::string XS = JF(X), YS = JF(Y), WS = JF(W), HS = JF(H);
+            if (!isRoot && n->parent && layoutSym.count(n->parent) && layoutIndex.count(n))
+            {
+                std::string ly = layoutSym[n->parent], ix = "[" + std::to_string(layoutIndex[n]) + "]";
+                XS = ly + "x" + ix; YS = ly + "y" + ix; WS = ly + "w" + ix; HS = ly + "h" + ix;
+            }
+            else if (layoutSym.count(n)) { WS = layoutSym[n] + "s[0]"; HS = layoutSym[n] + "s[1]"; }
             Node* owner = n->sliderPart ? SliderOwner(n) : nullptr;
             bool part = owner && nodeSym.count(owner) && HasVar(owner->var);
             std::string x = s + "x", y = s + "y", w = s + "w", h = s + "h";
@@ -283,10 +338,10 @@ namespace
                 std::string o = nodeSym[owner];
                 float span = owner->vmax - owner->vmin;
                 L("float " + s + "t = Math.max(0f, Math.min(1f, (" + Num(owner->var) + " - " + JF(owner->vmin) + ") / " + JF(span == 0 ? 1.0f : span) + "));");
-                if (n->sliderPart == 1) L("float " + x + " = " + o + "x, " + y + " = " + py + " + " + JF(Y) + ", " + w + " = " + o + "w * " + s + "t, " + h + " = " + JF(H) + ";");
-                else L("float " + x + " = " + o + "x + " + o + "w * " + s + "t - " + JF(W * 0.5f) + ", " + y + " = " + py + " + " + JF(Y) + ", " + w + " = " + JF(W) + ", " + h + " = " + JF(H) + ";");
+                if (n->sliderPart == 1) L("float " + x + " = " + o + "x, " + y + " = " + py + " + " + YS + ", " + w + " = " + o + "w * " + s + "t, " + h + " = " + HS + ";");
+                else L("float " + x + " = " + o + "x + " + o + "w * " + s + "t - " + JF(W * 0.5f) + ", " + y + " = " + py + " + " + YS + ", " + w + " = " + JF(W) + ", " + h + " = " + HS + ";");
             }
-            else L("float " + x + " = " + px + " + " + JF(X) + ", " + y + " = " + py + " + " + JF(Y) + ", " + w + " = " + JF(W) + ", " + h + " = " + JF(H) + ";");
+            else L("float " + x + " = " + px + " + " + XS + ", " + y + " = " + py + " + " + YS + ", " + w + " = " + WS + ", " + h + " = " + HS + ";");
 
             // interaction (on the resting rect)
             std::string hov = "false", act = "false", held = "false";
@@ -379,11 +434,24 @@ namespace
                 std::string heldE = n->role != Role::None ? held : "(" + hovE + " && ui.down)";
                 anim = s + "v";
                 L("FimAnim.Value " + anim + " = anim.update(" + JStr(n->id + "#m") + ", " + spSym + ", " + hovE + ", " + heldE + ", " + act + ", ui);");
-                L("boolean " + s + "T = !" + anim + ".isIdentity();");
-                L("if (" + s + "T) { float cx = " + x + " + " + w + " / 2, cy = " + y + " + " + h + " / 2; g.push(); g.translate(cx + " + anim + ".dx, cy + " + anim + ".dy); g.scale(" + anim + ".scale); g.translate(-cx, -cy); }");
+                // the static rotation goes into the same transform
+                std::string rot = n->rotation != 0 ? " g.rotate(" + JF(n->rotation) + " + " + anim + ".rot);" : " if (" + anim + ".rot != 0) g.rotate(" + anim + ".rot);";
+                L("boolean " + s + "T = " + (n->rotation != 0 ? std::string("true") : "!" + anim + ".isIdentity()") + ";");
+                L("if (" + s + "T) { float cx = " + x + " + " + w + " / 2, cy = " + y + " + " + h + " / 2; g.push(); g.translate(cx + " + anim + ".dx, cy + " + anim + ".dy); g.scale(" + anim + ".scale);" + rot + " g.translate(-cx, -cy); }");
                 L("float " + alpha + " = " + pa + " * " + JF(n->opacity) + " * " + anim + ".alpha;");
             }
-            else L("float " + alpha + " = " + pa + " * " + JF(n->opacity) + ";");
+            else
+            {
+                if (n->rotation != 0)
+                {
+                    anim = "rot";   // only the pop below uses it
+                    L("boolean " + s + "T = true;");
+                    L("{ float cx = " + x + " + " + w + " / 2, cy = " + y + " + " + h + " / 2; g.push(); g.translate(cx, cy); g.rotate(" + JF(n->rotation) + "); g.translate(-cx, -cy); }");
+                }
+                L("float " + alpha + " = " + pa + " * " + JF(n->opacity) + ";");
+            }
+            bool rotated = n->rotation != 0 || (spec && spec->preset == fim::Anim_Keyframes && spec->Track(fim::Prop_Rotation));
+            if (rotated) rotDepth++;
 
             // hover / active transitions
             std::string hv, av;
@@ -425,13 +493,14 @@ namespace
             }
 
             // children
-            bool clip = n->type == NodeType::Frame && n->clip && !n->children.empty();
+            bool clip = n->type == NodeType::Frame && n->clip && !n->children.empty() && !rotDepth;   // scissor cannot turn
             if (clip) L("g.scissor(" + rect + ");");
             bool stagger = n->anim.preset && n->anim.stagger > 0;
             for (size_t i = 0; i < n->children.size(); i++)
                 Emit(n->children[i].get(), x, y, alpha, false, stagger ? &n->anim : nullptr, stagger ? n->anim.stagger * (float)i : 0.0f);
             if (clip) L("g.endScissor();");
             if (!anim.empty()) L("if (" + s + "T) g.pop();");
+            if (rotated) rotDepth--;
             ind--;
             L("}");
         }
@@ -485,9 +554,11 @@ namespace
         o << "import " << opt.package << ".fimgui.FimGfx;\nimport " << opt.package << ".fimgui.FimUi;\n";
         o << "import com.mojang.blaze3d.systems.RenderSystem;\n";
         if (fabric)
-            o << "import net.minecraft.client.gui.DrawContext;\nimport net.minecraft.client.gui.screen.Screen;\nimport net.minecraft.text.Text;\nimport net.minecraft.util.Identifier;\n";
+            o << "import net.minecraft.client.gui.DrawContext;\nimport net.minecraft.client.gui.screen.Screen;\nimport net.minecraft.text.Text;\nimport net.minecraft.util.Identifier;\n"
+                 "import net.minecraft.util.math.RotationAxis;\n";
         else
-            o << "import net.minecraft.client.gui.GuiGraphics;\nimport net.minecraft.client.gui.screens.Screen;\nimport net.minecraft.network.chat.Component;\nimport net.minecraft.resources.ResourceLocation;\n";
+            o << "import com.mojang.math.Axis;\nimport net.minecraft.client.gui.GuiGraphics;\nimport net.minecraft.client.gui.screens.Screen;\nimport net.minecraft.network.chat.Component;\n"
+                 "import net.minecraft.resources.ResourceLocation;\n";
         o << "import org.lwjgl.glfw.GLFW;\n\nimport java.util.ArrayDeque;\nimport java.util.HashMap;\nimport java.util.Map;\n\n";
         std::string G = fabric ? "DrawContext" : "GuiGraphics", T = fabric ? "Text" : "Component", RL = fabric ? "Identifier" : "ResourceLocation";
         std::string rl = fabric ? "Identifier.of(MOD_ID, path)" : "ResourceLocation.fromNamespaceAndPath(MOD_ID, path)";
@@ -544,7 +615,9 @@ namespace
         o << "        @Override public void push() { " << push << "; stack.push(new float[] { tx, ty, s }); }\n";
         o << "        @Override public void pop() { " << pop << "; float[] t = stack.pop(); tx = t[0]; ty = t[1]; s = t[2]; }\n";
         o << "        @Override public void translate(float x, float y) { " << mat << ".translate(x, y, 0f); tx += x * s; ty += y * s; }\n";
-        o << "        @Override public void scale(float k) { " << mat << ".scale(k, k, 1f); s *= k; }\n\n";
+        o << "        @Override public void scale(float k) { " << mat << ".scale(k, k, 1f); s *= k; }\n";
+        o << "        // scissor rectangles stay axis-aligned: the generated menu does not clip inside rotated layers\n";
+        o << "        @Override public void rotate(float degrees) { " << mat << (fabric ? ".multiply(RotationAxis.POSITIVE_Z.rotationDegrees(degrees))" : ".mulPose(Axis.ZP.rotationDegrees(degrees))") << "; }\n\n";
         o << "        @Override public void fill(float x0, float y0, float x1, float y1, int argb) {\n"
           << "            if ((argb >>> 24) == 0 || x1 <= x0 || y1 <= y0) return;\n"
           << "            " << push << ";\n            " << mat << ".translate(x0, y0, 0f);\n            " << mat << ".scale(x1 - x0, y1 - y0, 1f);\n"
@@ -600,6 +673,14 @@ ExportResult ExportJava(Document& doc, const JavaOptions& opt, const std::string
     std::error_code ec;
     fs::create_directories(pkgDir / "fimgui", ec);
     if (ec) { res.message = "Cannot create " + pkgDir.u8string(); return res; }
+
+    // Static positions are those of the starting state; frames with state-dependent children lay out at runtime.
+    VarStore start;
+    EnsureVars(doc, start);
+    const VarStore* layoutVars = g_layoutVars;
+    g_layoutVars = &start;
+    doc.ApplyLayout();
+    g_layoutVars = layoutVars;
 
     Gen g(doc, opt, bake);
     g.menuRes = ResName(base, "menu");

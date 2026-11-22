@@ -14,8 +14,8 @@ using namespace theme;
 
 static const float kKeyEps = 1e-3f;
 
-static float PropDefault(int prop) { return prop >= fim::Prop_Scale ? 1.0f : 0.0f; }
-static bool PropIsPercent(int prop) { return prop >= fim::Prop_Scale; }
+static float PropDefault(int prop) { return fim::AnimPropDefault(prop); }
+static bool PropIsPercent(int prop) { return prop == fim::Prop_Scale || prop == fim::Prop_Opacity; }
 static float SnapTime(float t) { return std::max(0.0f, std::round(t * 100.0f) / 100.0f); }
 
 static void DrawDiamond(ImDrawList* dl, ImVec2 c, float r, ImU32 fill, ImU32 border)
@@ -287,12 +287,14 @@ void App::DrawTimeline()
 
     struct HoverKey { std::string node; int prop = -1; float time = 0; bool valid = false; } hk;
     struct DblRow { Node* node = nullptr; int prop = -1; } dblRow;
+    struct KeyPos { std::string node; int prop; float time; ImVec2 c; };
+    std::vector<KeyPos> keyPos;   // screen position of every visible key (rubber-band selection)
     auto nodes = TimelineNodes();
     if (nodes.empty())
     {
         ImGui::SetCursorPos(ImVec2(U(14), U(12)));
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
-        ImGui::TextUnformatted("Select a layer and press \"Animate\" (or set a key with the diamond) to create keyframes for position, scale and opacity.");
+        ImGui::TextUnformatted("Select a layer and press \"Animate\" (or set a key with the diamond) to create keyframes for position, scale, opacity and rotation.");
         ImGui::PopStyleColor();
     }
     float y = ImGui::GetCursorScreenPos().y;
@@ -331,7 +333,12 @@ void App::DrawTimeline()
             // summary diamonds: every key time of the layer
             rdl->PushClipRect(ImVec2(rx0 + L + 1, y), ImVec2(rx0 + W, y + rh), true);
             for (auto& tr : n->anim.tracks)
-                for (auto& k : tr.keys) DrawDiamond(rdl, ImVec2(X(k.time + n->anim.delay), y + rh * 0.5f), U(4), 0, TextDim);
+                for (auto& k : tr.keys)
+                {
+                    ImVec2 c(X(k.time + n->anim.delay), y + rh * 0.5f);
+                    DrawDiamond(rdl, c, U(4), 0, TextDim);
+                    keyPos.push_back({ n->id, tr.prop, k.time, c });   // a band over the layer row takes all its keys
+                }
             rdl->PopClipRect();
         }
         y += rh;
@@ -361,7 +368,7 @@ void App::DrawTimeline()
                 float v = SampleProp(n, prop, tl);
                 float shown = PropIsPercent(prop) ? std::round(v * 1000) / 10 : std::round(v * 100) / 100;
                 ImGui::SetCursorScreenPos(ImVec2(rx0 + L - U(86), y + (rh - fh) * 0.5f));
-                if (ui::NumField("##val", "", &shown, U(78), PropIsPercent(prop) ? 1.0f : 1.0f, -100000, 100000, PropIsPercent(prop) ? "%" : nullptr))
+                if (ui::NumField("##val", "", &shown, U(78), 1.0f, -100000, 100000, PropIsPercent(prop) ? "%" : prop == fim::Prop_Rotation ? "\xC2\xB0" : nullptr))
                     SetKey(n, prop, std::max(0.0f, tl), PropIsPercent(prop) ? shown / 100.0f : shown);
 
                 // track area
@@ -381,6 +388,7 @@ void App::DrawTimeline()
                         for (auto& s : keySel) if (s.node == n->id && s.prop == prop && std::fabs(s.time - k.time) < kKeyEps) isSel = true;
                         bool hov = rowsHovered && std::fabs(io.MousePos.x - c.x) <= U(6) && std::fabs(io.MousePos.y - c.y) <= U(8);
                         if (hov) { hk.node = n->id; hk.prop = prop; hk.time = k.time; hk.valid = true; }
+                        keyPos.push_back({ n->id, prop, k.time, c });
                         DrawDiamond(rdl, c, hov ? U(6.5f) : U(5.5f), isSel ? Accent : IM_COL32(220, 220, 225, 255), isSel ? IM_COL32_WHITE : IM_COL32(40, 40, 40, 255));
                     }
                 }
@@ -414,7 +422,44 @@ void App::DrawTimeline()
             keyDragStartX = io.MousePos.x;
             keyDragging = true;
         }
-        else if (!io.KeyShift && !io.KeyCtrl) keySel.clear();
+        else
+        {
+            // empty track area: rubber-band selection (Shift / Ctrl adds to the current keys)
+            if (!io.KeyShift && !io.KeyCtrl) keySel.clear();
+            keyMarquee = true;
+            keyMarqueeT0 = T(io.MousePos.x);
+            keyMarqueeY0 = io.MousePos.y - ImGui::GetWindowPos().y + ImGui::GetScrollY();
+            keyMarqueeBase = keySel;
+        }
+    }
+    if (keyMarquee)
+    {
+        ImVec2 wp0 = ImGui::GetWindowPos();
+        ImVec2 m0(X(keyMarqueeT0), wp0.y + keyMarqueeY0 - ImGui::GetScrollY());
+        ImVec2 m1 = io.MousePos;
+        ImVec2 r0(std::min(m0.x, m1.x), std::min(m0.y, m1.y)), r1(std::max(m0.x, m1.x), std::max(m0.y, m1.y));
+        // drag past the edges scrolls the rows and the time axis
+        float edge = U(24), sy = 0, sx = 0;
+        if (m1.y < wp0.y + edge) sy = -1; else if (m1.y > wp0.y + ImGui::GetWindowHeight() - edge) sy = 1;
+        if (m1.x > wp0.x + W - edge) sx = 1; else if (m1.x < wp0.x + L + edge) sx = -1;
+        if (sy != 0) ImGui::SetScrollY(ImGui::GetScrollY() + sy * U(600) * io.DeltaTime);
+        if (sx != 0) timelineScroll = std::max(0.0f, timelineScroll + sx * U(600) * io.DeltaTime);
+        if (!ImGui::IsMouseDown(0)) keyMarquee = false;
+        else if (r1.x - r0.x > 2 || r1.y - r0.y > 2)
+        {
+            keySel = keyMarqueeBase;
+            for (auto& k : keyPos)
+            {
+                if (k.c.x < r0.x || k.c.x > r1.x || k.c.y < r0.y || k.c.y > r1.y) continue;
+                bool dup = false;
+                for (auto& s : keySel) if (s.node == k.node && s.prop == k.prop && std::fabs(s.time - k.time) < kKeyEps) dup = true;
+                if (!dup) keySel.push_back({ k.node, k.prop, k.time });
+            }
+            rdl->PushClipRect(ImVec2(wp0.x + L + 1, wp0.y), ImVec2(wp0.x + W, wp0.y + ImGui::GetWindowHeight()), true);
+            rdl->AddRectFilled(r0, r1, IM_COL32(13, 153, 255, 30));
+            rdl->AddRect(r0, r1, IM_COL32(13, 153, 255, 200));
+            rdl->PopClipRect();
+        }
     }
     if (rowsHovered && ImGui::IsMouseClicked(1) && hk.valid)
     {

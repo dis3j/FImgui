@@ -19,7 +19,8 @@ static bool PointIn(ImVec2 p, ImVec2 a, ImVec2 b, float pad = 0) { return p.x >=
 
 // ---------------------------------------------------------------- hit testing
 
-static bool HitPath(App* app, std::vector<std::unique_ptr<Node>>& list, ImVec2 w, float tol, std::vector<Node*>& path)
+// w is in the unrotated frame of the list's parent; each rotated layer turns it back into its own frame.
+static bool HitPath(App* app, std::vector<std::unique_ptr<Node>>& list, ImVec2 pw, float tol, std::vector<Node*>& path)
 {
     for (int i = (int)list.size() - 1; i >= 0; i--)
     {
@@ -28,6 +29,7 @@ static bool HitPath(App* app, std::vector<std::unique_ptr<Node>>& list, ImVec2 w
         if (!app->ignoreConditions && !NodeConditionVisible(n, app->vars)) continue;
         ImVec2 a, b;
         NodeWorldRect(n, &app->vars, &a, &b);
+        ImVec2 w = n->rotation != 0.0f ? RotatePoint(pw, ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), -n->rotation) : pw;
         bool inside = n->type == NodeType::Line ? PointIn(w, a, ImVec2(b.x, a.y), tol) : PointIn(w, a, b);
         bool clipped = n->type == NodeType::Frame && n->clip;
         if (!n->children.empty() && (inside || !clipped))
@@ -84,7 +86,7 @@ static bool SelectionBounds(App* app, ImVec2* a, ImVec2* b)
     for (Node* n : nodes)
     {
         ImVec2 na, nb;
-        NodeWorldRect(n, &app->vars, &na, &nb);
+        NodeWorldBounds(n, &app->vars, &na, &nb);
         a->x = std::min(a->x, na.x); a->y = std::min(a->y, na.y);
         b->x = std::max(b->x, nb.x); b->y = std::max(b->y, nb.y);
     }
@@ -107,11 +109,59 @@ static ImVec2 HandlePos(int h, ImVec2 a, ImVec2 b)
     }
 }
 
+// A single rotated layer gets its handles on its own (turned) corners.
+static bool RotatedSingle(App* app, ImVec2 q[4])
+{
+    if (app->selection.size() != 1) return false;
+    Node* n = app->Sel();
+    if (!n || n->type == NodeType::Line || !HasRotation(n)) return false;
+    NodeWorldQuad(n, &app->vars, q);
+    for (int i = 0; i < 4; i++) q[i] = app->WorldToScreen(q[i]);
+    return true;
+}
+
+// Corners of the selection on screen (tl, tr, br, bl).
+static bool SelectionCorners(App* app, ImVec2 q[4])
+{
+    if (RotatedSingle(app, q)) return true;
+    ImVec2 wa, wb;
+    if (!SelectionBounds(app, &wa, &wb)) return false;
+    ImVec2 a = app->WorldToScreen(wa), b = app->WorldToScreen(wb);
+    q[0] = a; q[1] = ImVec2(b.x, a.y); q[2] = b; q[3] = ImVec2(a.x, b.y);
+    return true;
+}
+
+// The rotate zone: a ring just outside each corner handle (Figma style).
+static bool RotateZoneAt(App* app, ImVec2 mouse)
+{
+    if (app->selection.empty()) return false;
+    for (Node* n : app->SelNodes()) if (n->locked || n->type == NodeType::Line) return false;
+    ImVec2 q[4];
+    if (!SelectionCorners(app, q)) return false;
+    ImVec2 c((q[0].x + q[2].x) * 0.5f, (q[0].y + q[2].y) * 0.5f);
+    for (int i = 0; i < 4; i++)
+    {
+        float d = std::sqrt(ImLengthSqr(ImVec2(mouse.x - q[i].x, mouse.y - q[i].y)));
+        // outside the box: farther from the center than the corner
+        bool outside = ImLengthSqr(ImVec2(mouse.x - c.x, mouse.y - c.y)) > ImLengthSqr(ImVec2(q[i].x - c.x, q[i].y - c.y));
+        if (d > U(5) && d < U(18) && outside) return true;
+    }
+    return false;
+}
+
 static int HandleAt(App* app, ImVec2 mouse)
 {
     ImVec2 wa, wb;
     if (!SelectionBounds(app, &wa, &wb)) return -1;
     for (Node* n : app->SelNodes()) if (n->locked) return -1;
+    ImVec2 rq[4];
+    if (RotatedSingle(app, rq))
+    {
+        const int ids[4] = { 0, 2, 4, 6 };
+        for (int i = 0; i < 4; i++)
+            if (std::fabs(mouse.x - rq[i].x) < U(5) && std::fabs(mouse.y - rq[i].y) < U(5)) return ids[i];
+        return -1;
+    }
     ImVec2 a = app->WorldToScreen(wa), b = app->WorldToScreen(wb);
     float r = U(5);
     bool line = app->selection.size() == 1 && app->Sel()->type == NodeType::Line;
@@ -289,8 +339,10 @@ void App::UpdateMove(ImVec2 world)
     for (Node* n : moving)
     {
         ImVec4 r = m_dragOrig[n->id];
-        n->x = Snap(r.x + delta.x);
-        n->y = Snap(r.y + delta.y);
+        // inside a rotated parent the mouse moves along the parent's turned axes
+        ImVec2 d = n->parent && HasRotation(n->parent) ? RotatePoint(delta, ImVec2(0, 0), -NodeWorldRotation(n->parent)) : delta;
+        n->x = Snap(r.x + d.x);
+        n->y = Snap(r.y + d.y);
     }
     MarkDirty();
 }
@@ -302,6 +354,45 @@ void App::UpdateResize(ImVec2 world)
     std::vector<Node*> nodes;
     for (auto& [id, r] : m_dragOrig) if (Node* n = doc.Find(id)) nodes.push_back(n);
     if (nodes.empty()) return;
+    if (nodes.size() == 1 && HasRotation(nodes[0]))
+    {
+        // Resize in the layer's own axes, then move it so the opposite corner stays where it was.
+        Node* n = nodes[0];
+        ImVec4 r = m_dragOrig[n->id];
+        float own = n->rotation, total = NodeWorldRotation(n);
+        ImVec2 d = RotatePoint(delta, ImVec2(0, 0), -total);
+        int h = m_handle;
+        bool left = h == 0 || h == 6 || h == 7, right = h == 2 || h == 3 || h == 4;
+        bool top = h == 0 || h == 1 || h == 2, bottom = h == 4 || h == 5 || h == 6;
+        float x0 = r.x, y0 = r.y, x1 = r.x + r.z, y1 = r.y + r.w;
+        if (left) x0 += d.x;
+        if (right) x1 += d.x;
+        if (top) y0 += d.y;
+        if (bottom) y1 += d.y;
+        if (io.KeyAlt) { if (left) x1 -= d.x; if (right) x0 -= d.x; if (top) y1 -= d.y; if (bottom) y0 -= d.y; }
+        if (io.KeyShift && r.z > 0 && r.w > 0)
+        {
+            float aspect = r.z / r.w, w = x1 - x0, hh = y1 - y0;
+            if ((left || right) && (top || bottom)) { if (std::fabs(w / aspect) > std::fabs(hh)) hh = w / aspect; else w = hh * aspect; }
+            else if (left || right) hh = w / aspect;
+            else w = hh * aspect;
+            if (left) x0 = x1 - w; else x1 = x0 + w;
+            if (top) y0 = y1 - hh; else y1 = y0 + hh;
+        }
+        if (x1 < x0) std::swap(x0, x1);
+        if (y1 < y0) std::swap(y0, y1);
+        ImVec2 c0(r.x + r.z * 0.5f, r.y + r.w * 0.5f), c1((x0 + x1) * 0.5f, (y0 + y1) * 0.5f);
+        ImVec2 c = RotatePoint(c1, c0, own);   // the unrotated center moves by the turned offset
+        float w = std::max(1.0f, Snap(x1 - x0)), hh = std::max(1.0f, Snap(y1 - y0));
+        n->x = Snap(c.x - w * 0.5f);
+        n->y = Snap(c.y - hh * 0.5f);
+        n->w = w;
+        n->h = hh;
+        if (n->type == NodeType::Text && n->textSizing != 0) n->textSizing = (top || bottom) ? 0 : 2;
+        if (n->layout) { if (left || right) n->hugW = false; if (top || bottom) n->hugH = false; }
+        MarkDirty();
+        return;
+    }
     ApplySnapping(delta, nodes, true, m_handle);
 
     // Bounding box of the originals (parent-relative coords are converted to world).
@@ -370,6 +461,35 @@ void App::UpdateResize(ImVec2 world)
     MarkDirty();
 }
 
+void App::UpdateRotate(ImVec2 world)
+{
+    ImVec2 v(world.x - m_rotCenter.x, world.y - m_rotCenter.y);
+    float delta = std::atan2(v.y, v.x) * 180.0f / 3.14159265f - m_rotStartAngle;
+    for (auto& [id, r0] : m_rotOrig)
+    {
+        Node* n = doc.Find(id);
+        if (!n) continue;
+        float r = r0 + delta;
+        if (ImGui::GetIO().KeyShift) r = std::round(r / 15.0f) * 15.0f;
+        r = std::fmod(r, 360.0f);
+        if (r > 180.0f) r -= 360.0f; else if (r <= -180.0f) r += 360.0f;
+        r = std::round(r * 100.0f) / 100.0f;
+        if (m_rotOrig.size() > 1)
+        {
+            // several layers turn around the middle of the selection
+            ImVec4 o = m_dragOrig[id];
+            ImVec2 base = n->parent ? n->parent->AbsPos() : ImVec2(0, 0);
+            ImVec2 c(base.x + o.x + o.z * 0.5f, base.y + o.y + o.w * 0.5f);
+            ImVec2 nc = RotatePoint(c, m_rotCenter, r - r0);
+            n->x = Snap(nc.x - base.x - o.z * 0.5f);
+            n->y = Snap(nc.y - base.y - o.w * 0.5f);
+        }
+        n->rotation = r;
+    }
+    if (Node* n = Sel()) ImGui::SetTooltip("%g\xC2\xB0", n->rotation);
+    MarkDirty();
+}
+
 // ---------------------------------------------------------------- text editing
 
 void App::StartTextEdit(Node* n)
@@ -394,6 +514,236 @@ void App::CommitTextEdit()
 
 // ---------------------------------------------------------------- input
 
+// ---------------------------------------------------------------- pen tool and path editing
+
+// Local px of a path node <-> world (rotations included).
+static ImVec2 PathToWorld(App* app, Node* n, ImVec2 l)
+{
+    ImVec2 a, b;
+    NodeWorldRect(n, &app->vars, &a, &b);
+    return NodeToWorld(n, &app->vars, ImVec2(a.x + l.x, a.y + l.y));
+}
+static ImVec2 WorldToPath(App* app, Node* n, ImVec2 w)
+{
+    ImVec2 a, b;
+    NodeWorldRect(n, &app->vars, &a, &b);
+    ImVec2 q = WorldToNode(n, &app->vars, w);
+    return ImVec2(q.x - a.x, q.y - a.y);
+}
+
+// Points drawn so far (world px) -> the node: the box is fitted around the curve.
+static void PenApply(App* app, Node* n, const std::vector<fim::PathPoint>& world)
+{
+    ImVec2 base = n->parent ? n->parent->AbsPos() : ImVec2(0, 0);
+    n->x = -base.x;
+    n->y = -base.y;
+    n->SetPathPx(world, true);
+    app->MarkDirty();
+}
+
+void App::FinishPen(bool close)
+{
+    Node* n = doc.Find(penId);
+    penId.clear();
+    penPts.clear();
+    penDragging = false;
+    if (!n) return;
+    if (n->path.size() < 2) { doc.Detach(n); selection.clear(); MarkDirty(); return; }
+    std::vector<fim::PathPoint> px = n->PathPx();
+    n->closed = close;
+    if (!close) n->fill.type = 0;   // an open curve is a stroke
+    n->SetPathPx(px, true);
+    SetSelection({ n->id });
+    MarkDirty();
+}
+
+void App::PenInput(ImVec2 world, bool canvasHovered)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    Node* n = doc.Find(penId);
+    if (!n && !penId.empty()) { penId.clear(); penPts.clear(); }
+    ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
+    if (canvasHovered && ImGui::IsMouseClicked(0))
+    {
+        if (!n)
+        {
+            Node* parent = ContainerAt(world);
+            n = CreateNode(NodeType::Path, world, ImVec2(1, 1), parent);
+            n->name = UniqueName("Vector");
+            n->closed = false;
+            penId = n->id;
+            penPts = { { world, ImVec2(0, 0), ImVec2(0, 0) } };
+            SetSelection({ n->id });
+        }
+        else
+        {
+            ImVec2 first = WorldToScreen(penPts[0].p);
+            if (penPts.size() >= 2 && ImLengthSqr(ImVec2(io.MousePos.x - first.x, io.MousePos.y - first.y)) < U(8) * U(8))
+            {
+                n->closed = true;
+                PenApply(this, n, penPts);
+                FinishPen(true);
+                return;
+            }
+            penPts.push_back({ world, ImVec2(0, 0), ImVec2(0, 0) });
+        }
+        penDragging = true;
+        PenApply(this, n, penPts);
+    }
+    if (penDragging && n)
+    {
+        if (!ImGui::IsMouseDown(0)) penDragging = false;
+        else if (ImGui::IsMouseDragging(0, 2.0f))
+        {
+            // dragging after a click pulls symmetric handles: a smooth point
+            fim::PathPoint& q = penPts.back();
+            q.out = ImVec2(world.x - q.p.x, world.y - q.p.y);
+            q.in = ImVec2(-q.out.x, -q.out.y);
+            PenApply(this, n, penPts);
+        }
+    }
+}
+
+void App::DrawPenOverlay(ImDrawList* dl)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    auto anchor = [&](ImVec2 s, bool on) {
+        dl->AddRectFilled(ImVec2(s.x - U(3.5f), s.y - U(3.5f)), ImVec2(s.x + U(3.5f), s.y + U(3.5f)), on ? Accent : IM_COL32_WHITE);
+        dl->AddRect(ImVec2(s.x - U(3.5f), s.y - U(3.5f)), ImVec2(s.x + U(3.5f), s.y + U(3.5f)), Accent);
+    };
+    auto handle = [&](ImVec2 from, ImVec2 to) {
+        dl->AddLine(from, to, IM_COL32(13, 153, 255, 200));
+        dl->AddCircleFilled(to, U(3), IM_COL32_WHITE);
+        dl->AddCircle(to, U(3), Accent);
+    };
+    if (tool == Tool::Pen && !penPts.empty())
+    {
+        // rubber band from the last point to the pointer
+        const fim::PathPoint& l = penPts.back();
+        ImVec2 p0 = WorldToScreen(l.p), p1 = WorldToScreen(ImVec2(l.p.x + l.out.x, l.p.y + l.out.y)), m = io.MousePos;
+        if (!penDragging) dl->AddBezierCubic(p0, p1, m, m, IM_COL32(13, 153, 255, 160), 1.0f);
+        for (size_t i = 0; i < penPts.size(); i++)
+        {
+            ImVec2 s = WorldToScreen(penPts[i].p);
+            bool closeHover = i == 0 && penPts.size() >= 2 && ImLengthSqr(ImVec2(m.x - s.x, m.y - s.y)) < U(8) * U(8);
+            anchor(s, closeHover || i + 1 == penPts.size());
+            if (closeHover) ImGui::SetTooltip("Close path");
+        }
+        if (l.out.x != 0 || l.out.y != 0)
+        {
+            handle(p0, p1);
+            handle(p0, WorldToScreen(ImVec2(l.p.x + l.in.x, l.p.y + l.in.y)));
+        }
+        return;
+    }
+    Node* n = doc.Find(pathEditId);
+    if (!n || n->type != NodeType::Path) return;
+    auto pts = n->PathPx();
+    // outline
+    ImVector<ImVec2> line;
+    ImVec2 a, b;
+    NodeWorldRect(n, &vars, &a, &b);
+    fim::PathOutline(ImVec2(0, 0), ImVec2(1, 1), pts.data(), (int)pts.size(), n->closed, line);
+    for (auto& q : line) q = WorldToScreen(PathToWorld(this, n, q));
+    if (line.Size >= 2) dl->AddPolyline(line.Data, line.Size, Accent, n->closed ? ImDrawFlags_Closed : 0, 1.5f);
+    for (int i = 0; i < (int)pts.size(); i++)
+    {
+        ImVec2 s = WorldToScreen(PathToWorld(this, n, pts[i].p));
+        bool near = pathSelPt >= 0 && (i == pathSelPt || i == (pathSelPt + 1) % (int)pts.size() || i == (pathSelPt + (int)pts.size() - 1) % (int)pts.size());
+        if (near)
+        {
+            if (pts[i].in.x != 0 || pts[i].in.y != 0) handle(s, WorldToScreen(PathToWorld(this, n, ImVec2(pts[i].p.x + pts[i].in.x, pts[i].p.y + pts[i].in.y))));
+            if (pts[i].out.x != 0 || pts[i].out.y != 0) handle(s, WorldToScreen(PathToWorld(this, n, ImVec2(pts[i].p.x + pts[i].out.x, pts[i].p.y + pts[i].out.y))));
+        }
+        anchor(s, i == pathSelPt);
+    }
+}
+
+// Returns true when the path editor used the mouse this frame.
+bool App::PathEditInput(ImVec2 world, bool canvasHovered)
+{
+    Node* n = doc.Find(pathEditId);
+    if (!n || n->type != NodeType::Path || preview) { pathEditId.clear(); return false; }
+    ImGuiIO& io = ImGui::GetIO();
+    auto pts = n->PathPx();
+    int count = (int)pts.size();
+    auto screenOf = [&](ImVec2 l) { return WorldToScreen(PathToWorld(this, n, l)); };
+    auto near = [&](ImVec2 s) { return ImLengthSqr(ImVec2(io.MousePos.x - s.x, io.MousePos.y - s.y)) < U(6) * U(6); };
+
+    if (pathPtDrag && ImGui::IsMouseDown(0))
+    {
+        ImVec2 l = WorldToPath(this, n, world);
+        fim::PathPoint& q = pts[pathSelPt];
+        if (pathPtDrag == 1) q.p = ImVec2(Snap(l.x), Snap(l.y));
+        else
+        {
+            ImVec2 h(l.x - q.p.x, l.y - q.p.y);
+            ImVec2& self = pathPtDrag == 2 ? q.in : q.out;
+            ImVec2& other = pathPtDrag == 2 ? q.out : q.in;
+            self = h;
+            if (!io.KeyAlt)
+            {
+                // smooth point: the opposite handle keeps its length and turns with this one
+                float len = std::sqrt(ImLengthSqr(other)), hl = std::sqrt(ImLengthSqr(h));
+                if (hl > 1e-3f) other = len > 1e-3f ? ImVec2(-h.x / hl * len, -h.y / hl * len) : ImVec2(-h.x, -h.y);
+            }
+        }
+        n->SetPathPx(pts, true);
+        MarkDirty();
+        return true;
+    }
+    pathPtDrag = 0;
+    if (!canvasHovered) return false;
+
+    // what is under the pointer: handles of the selected point first, then anchors
+    int hitPt = -1, hitKind = 0;
+    if (pathSelPt >= 0 && pathSelPt < count)
+    {
+        const fim::PathPoint& q = pts[pathSelPt];
+        if ((q.in.x != 0 || q.in.y != 0) && near(screenOf(ImVec2(q.p.x + q.in.x, q.p.y + q.in.y)))) { hitPt = pathSelPt; hitKind = 2; }
+        else if ((q.out.x != 0 || q.out.y != 0) && near(screenOf(ImVec2(q.p.x + q.out.x, q.p.y + q.out.y)))) { hitPt = pathSelPt; hitKind = 3; }
+    }
+    for (int i = 0; i < count && hitPt < 0; i++)
+        if (near(screenOf(pts[i].p))) { hitPt = i; hitKind = 1; }
+    if (hitPt >= 0) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+
+    if (ImGui::IsMouseDoubleClicked(0) && hitKind == 1)
+    {
+        // corner <-> smooth
+        fim::PathPoint& q = pts[hitPt];
+        if (q.in.x != 0 || q.in.y != 0 || q.out.x != 0 || q.out.y != 0) q.in = q.out = ImVec2(0, 0);
+        else
+        {
+            ImVec2 prev = pts[(hitPt + count - 1) % count].p, next = pts[(hitPt + 1) % count].p;
+            ImVec2 d((next.x - prev.x) * 0.25f, (next.y - prev.y) * 0.25f);
+            q.out = d;
+            q.in = ImVec2(-d.x, -d.y);
+        }
+        n->SetPathPx(pts, true);
+        MarkDirty();
+        return true;
+    }
+    if (ImGui::IsMouseClicked(0))
+    {
+        if (hitPt < 0) { pathEditId.clear(); pathSelPt = -1; return false; }   // click elsewhere leaves the editor
+        pathSelPt = hitPt;
+        pathPtDrag = hitKind;
+        return true;
+    }
+    return hitPt >= 0;
+}
+
+void App::DeletePathPoint()
+{
+    Node* n = doc.Find(pathEditId);
+    if (!n || pathSelPt < 0 || pathSelPt >= (int)n->path.size() || n->path.size() <= 2) return;
+    auto pts = n->PathPx();
+    pts.erase(pts.begin() + pathSelPt);
+    n->SetPathPx(pts, true);
+    pathSelPt = std::min(pathSelPt, (int)pts.size() - 1);
+    MarkDirty();
+}
+
 void App::CanvasInput()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -415,6 +765,11 @@ void App::CanvasInput()
     }
     if (panTool && canvasHovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
 
+    // Pen and path editing take the mouse first
+    if (tool != Tool::Pen && !penId.empty()) FinishPen(false);
+    if (tool == Tool::Pen && !panTool) { m_hoverId.clear(); PenInput(world, canvasHovered); return; }
+    if (!pathEditId.empty() && tool == Tool::Move && m_drag == Drag::None && PathEditInput(world, canvasHovered)) return;
+
     // Hover
     m_hoverId = (canvasHovered && m_drag == Drag::None) ? HitTest(world, io.KeyCtrl) : "";
     if (canvasHovered && m_drag == Drag::None && m_hoverId.empty())
@@ -425,7 +780,9 @@ void App::CanvasInput()
         }
 
     int handle = (canvasHovered && tool == Tool::Move && m_drag == Drag::None) ? HandleAt(this, mouse) : -1;
+    bool rotateZone = handle < 0 && canvasHovered && tool == Tool::Move && m_drag == Drag::None && editingText.empty() && RotateZoneAt(this, mouse);
     if (handle >= 0) ImGui::SetMouseCursor(HandleCursor(handle));
+    if (rotateZone || m_drag == Drag::Rotate) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     if (m_drag == Drag::Resize) ImGui::SetMouseCursor(HandleCursor(m_handle));
     if (tool != Tool::Move && tool != Tool::Hand && canvasHovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
 
@@ -445,6 +802,17 @@ void App::CanvasInput()
             m_drag = Drag::Resize;
             m_handle = handle;
             BeginMove();
+        }
+        else if (rotateZone)
+        {
+            m_drag = Drag::Rotate;
+            BeginMove();
+            m_rotOrig.clear();
+            for (auto& [id, r] : m_dragOrig) if (Node* n = doc.Find(id)) m_rotOrig[id] = n->rotation;
+            ImVec2 sa, sb;
+            SelectionBounds(this, &sa, &sb);
+            m_rotCenter = ImVec2((sa.x + sb.x) * 0.5f, (sa.y + sb.y) * 0.5f);
+            m_rotStartAngle = std::atan2(world.y - m_rotCenter.y, world.x - m_rotCenter.x) * 180.0f / 3.14159265f;
         }
         else
         {
@@ -472,11 +840,12 @@ void App::CanvasInput()
     {
         Node* n = doc.Find(m_hoverId.empty() ? (selection.empty() ? "" : selection[0]) : m_hoverId);
         if (n && n->type == NodeType::Text) { StartTextEdit(n); m_drag = Drag::None; }
+        else if (n && n->type == NodeType::Path) { SetSelection({ n->id }); pathEditId = n->id; pathSelPt = -1; m_drag = Drag::None; }
         else if (n && !n->children.empty())
         {
             std::vector<Node*> path;
             std::vector<std::unique_ptr<Node>>& list = n->children;
-            if (HitPath(this, list, world, 4.0f / zoom, path) && !path.empty()) { Select(path[0]->id); m_drag = Drag::None; }
+            if (HitPath(this, list, WorldToNode(n, &vars, world), 4.0f / zoom, path) && !path.empty()) { Select(path[0]->id); m_drag = Drag::None; }
         }
     }
 
@@ -501,6 +870,7 @@ void App::CanvasInput()
     }
     if (m_drag == Drag::Move) UpdateMove(world);
     if (m_drag == Drag::Resize) UpdateResize(world);
+    if (m_drag == Drag::Rotate) UpdateRotate(world);
     if (m_drag == Drag::Create && ImGui::IsMouseDragging(0, 2.0f))
     {
         ImVec2 a(std::min(m_dragStartWorld.x, world.x), std::min(m_dragStartWorld.y, world.y));
@@ -614,7 +984,7 @@ void App::CanvasInput()
                 {
                     if (!c->visible || c->locked || (!ignoreConditions && !NodeConditionVisible(c.get(), vars))) continue;
                     ImVec2 ca, cb;
-                    NodeWorldRect(c.get(), &vars, &ca, &cb);
+                    NodeWorldBounds(c.get(), &vars, &ca, &cb);
                     if (ca.x <= b.x && cb.x >= a.x && ca.y <= b.y && cb.y >= a.y && !IsSelected(c->id))
                         selection.push_back(c->id);
                 }
@@ -650,29 +1020,30 @@ void App::CanvasOverlay(ImDrawList* dl)
     if (Node* h = doc.Find(m_hoverId))
         if (!IsSelected(h->id) && m_drag == Drag::None)
         {
-            ImVec2 a, b;
-            NodeWorldRect(h, &vars, &a, &b);
-            ImVec2 sa = WorldToScreen(a), sb = WorldToScreen(b);
-            if (h->type == NodeType::Line) dl->AddLine(sa, ImVec2(sb.x, sa.y), Accent, 2.0f);
-            else dl->AddRect(sa, sb, Accent, 0, 0, 2.0f);
+            ImVec2 q[4];
+            NodeWorldQuad(h, &vars, q);
+            for (auto& p : q) p = WorldToScreen(p);
+            if (h->type == NodeType::Line) dl->AddLine(q[0], q[1], Accent, 2.0f);
+            else dl->AddPolyline(q, 4, Accent, ImDrawFlags_Closed, 2.0f);
         }
 
     // Auto layout hints: show children bounds of selected auto-layout frame
     auto sel = SelNodes();
     for (Node* n : sel)
     {
-        ImVec2 a, b;
-        NodeWorldRect(n, &vars, &a, &b);
-        ImVec2 sa = WorldToScreen(a), sb = WorldToScreen(b);
-        if (n->type == NodeType::Line) dl->AddLine(sa, ImVec2(sb.x, sa.y), Accent, 1.0f);
-        else dl->AddRect(sa, sb, Accent, 0, 0, 1.0f);
+        ImVec2 q[4];
+        NodeWorldQuad(n, &vars, q);
+        for (auto& p : q) p = WorldToScreen(p);
+        if (n->type == NodeType::Line) dl->AddLine(q[0], q[1], Accent, 1.0f);
+        else dl->AddPolyline(q, 4, Accent, ImDrawFlags_Closed, 1.0f);
         if (n->layout && sel.size() == 1)
             for (auto& c : n->children)
             {
-                if (!c->visible) continue;
-                ImVec2 ca, cb;
-                NodeWorldRect(c.get(), &vars, &ca, &cb);
-                dl->AddRect(WorldToScreen(ca), WorldToScreen(cb), IM_COL32(13, 153, 255, 70), 0, 0, 1.0f);
+                if (!c->visible || (!ignoreConditions && !NodeConditionVisible(c.get(), vars))) continue;
+                ImVec2 cq[4];
+                NodeWorldQuad(c.get(), &vars, cq);
+                for (auto& p : cq) p = WorldToScreen(p);
+                dl->AddPolyline(cq, 4, IM_COL32(13, 153, 255, 70), ImDrawFlags_Closed, 1.0f);
             }
     }
 
@@ -684,14 +1055,16 @@ void App::CanvasOverlay(ImDrawList* dl)
         bool locked = false;
         for (Node* n : sel) locked |= n->locked;
         bool line = sel.size() == 1 && sel[0]->type == NodeType::Line;
-        if (!locked && m_drag != Drag::Move)
+        if (!locked && m_drag != Drag::Move && pathEditId.empty() && penId.empty())
         {
             float hs = U(3.5f);
             auto handle = [&](ImVec2 p) {
                 dl->AddRectFilled(ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), IM_COL32_WHITE);
                 dl->AddRect(ImVec2(p.x - hs, p.y - hs), ImVec2(p.x + hs, p.y + hs), Accent, 0, 0, 1.0f);
             };
+            ImVec2 rq[4];
             if (line) { handle(a); handle(ImVec2(b.x, a.y)); }
+            else if (RotatedSingle(this, rq)) for (auto& p : rq) handle(p);
             else for (int h : { 0, 2, 4, 6 }) handle(HandlePos(h, a, b));
         }
         // Size pill
@@ -718,6 +1091,8 @@ void App::CanvasOverlay(ImDrawList* dl)
             dl->AddLine(p0, p1, theme::Guide, 1.0f);
         }
     }
+
+    DrawPenOverlay(dl);
 
     // Marquee
     if (m_drag == Drag::Marquee)

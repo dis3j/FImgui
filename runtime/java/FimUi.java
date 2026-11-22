@@ -186,6 +186,49 @@ public final class FimUi {
 
     // ---- helpers for generated code
 
+    /**
+     * Auto layout for frames whose children appear and disappear with state ("Show when"): hidden items take no space.
+     * In: w[], h[] (fill items change), visible[], fillMain[], fillCross[], and the frame size in size[0..1] (hugging axes change).
+     * Out: x[], y[] relative to the frame. Mirrors fim::AutoLayout of the C++ runtime.
+     */
+    public static void autoLayout(float[] x, float[] y, float[] w, float[] h, boolean[] visible, boolean[] fillMain, boolean[] fillCross,
+                                  boolean horizontal, float gap, float padL, float padT, float padR, float padB,
+                                  int alignMain, int alignCross, boolean hugMain, boolean hugCross, float[] size) {
+        int n = w.length;
+        float[] mainS = horizontal ? w : h, crossS = horizontal ? h : w, mainP = horizontal ? x : y, crossP = horizontal ? y : x;
+        int fm = horizontal ? 0 : 1, fc = horizontal ? 1 : 0;
+        float padMain0 = horizontal ? padL : padT, padMain1 = horizontal ? padR : padB;
+        float padCross0 = horizontal ? padT : padL, padCross1 = horizontal ? padB : padR;
+        float fixed = 0, maxCross = 0;
+        int fills = 0, shown = 0;
+        for (int i = 0; i < n; i++) {
+            if (!visible[i]) continue;
+            shown++;
+            if (fillMain[i] && !hugMain) fills++; else fixed += mainS[i];
+            if (!fillCross[i] && alignCross != 3) maxCross = Math.max(maxCross, crossS[i]);
+        }
+        float gaps = shown > 1 ? gap * (shown - 1) : 0;
+        if (hugMain) size[fm] = padMain0 + fixed + gaps + padMain1;
+        if (hugCross) size[fc] = padCross0 + maxCross + padCross1;
+        float avail = size[fm] - padMain0 - padMain1, innerCross = size[fc] - padCross0 - padCross1;
+        float free = avail - fixed - gaps, g = gap, pos = padMain0;
+        if (fills > 0) {
+            float each = Math.max(0, free / fills);
+            for (int i = 0; i < n; i++) if (visible[i] && fillMain[i]) mainS[i] = each;
+        } else if (alignMain == 1) pos += free * 0.5f;
+        else if (alignMain == 2) pos += free;
+        else if (alignMain == 3 && shown > 1) g = (avail - fixed) / (shown - 1);
+        for (int i = 0; i < n; i++) {
+            if (fillCross[i] || alignCross == 3) crossS[i] = innerCross;
+            float cp = padCross0;
+            if (alignCross == 1) cp += (innerCross - crossS[i]) * 0.5f;
+            else if (alignCross == 2) cp += innerCross - crossS[i];
+            mainP[i] = Math.round(pos);
+            crossP[i] = Math.round(cp);
+            if (visible[i]) pos += mainS[i] + g;
+        }
+    }
+
     public static int lerpColor(int a, int b, float t) {
         t = Math.max(0, Math.min(1, t));
         int r = 0;

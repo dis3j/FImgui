@@ -41,7 +41,7 @@ namespace fim
         static ID3D11VertexShader* g_vsFull = nullptr;
         static ID3D11PixelShader* g_psBlur = nullptr;
         static ID3D11PixelShader* g_psComposite = nullptr;
-        static ID3D11PixelShader* g_psBlend[4] = {};
+        static ID3D11PixelShader* g_psBlend[Blend_Count] = {};
         static ID3D11BlendState* g_blend[4] = {};
         static ID3D11Buffer* g_cbBlur = nullptr;
         static ID3D11Buffer* g_cbComposite = nullptr;
@@ -166,8 +166,10 @@ float4 main(VO i) : SV_Target
     float4 t = tex0.Sample(s0, i.uv) * i.col;
 #if MODE == 0
     return t;
-#elif MODE == 2
+#elif MODE == 2 || MODE == 4
     return float4(lerp(float3(1, 1, 1), t.rgb, t.a), 0);
+#elif MODE == 7
+    return float4((1 - t.rgb) * t.a, 0);
 #else
     return float4(t.rgb * t.a, 0);
 #endif
@@ -216,12 +218,12 @@ float4 main(VO i) : SV_Target
             vs->Release();
             g_psBlur = MakePS(kPsBlur);
             g_psComposite = MakePS(kPsComposite);
-            const char* modes[4] = { "0", "1", "2", "3" };
-            for (int i = 0; i < 4; i++) g_psBlend[i] = MakePS(kPsBlend, modes[i]);
+            const char* modes[Blend_Count] = { "0", "1", "2", "3", "4", "5", "6", "7" };
+            for (int i = 0; i < Blend_Count; i++) g_psBlend[i] = MakePS(kPsBlend, modes[i]);
             g_cbBlur = MakeCB(16);
             g_cbComposite = MakeCB(96);
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < Blend_Count; i++)
             {
                 D3D11_BLEND_DESC bd = {};
                 auto& rt = bd.RenderTarget[0];
@@ -236,6 +238,13 @@ float4 main(VO i) : SV_Target
                 case Blend_Add: rt.SrcBlend = D3D11_BLEND_ONE; rt.DestBlend = D3D11_BLEND_ONE; break;
                 case Blend_Multiply: rt.SrcBlend = D3D11_BLEND_DEST_COLOR; rt.DestBlend = D3D11_BLEND_ZERO; break;
                 case Blend_Screen: rt.SrcBlend = D3D11_BLEND_ONE; rt.DestBlend = D3D11_BLEND_INV_SRC_COLOR; break;
+                // min / max ignore the factors: the shader fades the source toward the neutral color instead
+                case Blend_Darken: rt.SrcBlend = D3D11_BLEND_ONE; rt.DestBlend = D3D11_BLEND_ONE; rt.BlendOp = D3D11_BLEND_OP_MIN; break;
+                case Blend_Lighten: rt.SrcBlend = D3D11_BLEND_ONE; rt.DestBlend = D3D11_BLEND_ONE; rt.BlendOp = D3D11_BLEND_OP_MAX; break;
+                // s + d - 2sd
+                case Blend_Exclusion: rt.SrcBlend = D3D11_BLEND_INV_DEST_COLOR; rt.DestBlend = D3D11_BLEND_INV_SRC_COLOR; break;
+                // d - (1 - s): the shader outputs (1 - s) * a
+                case Blend_PlusDarker: rt.SrcBlend = D3D11_BLEND_ONE; rt.DestBlend = D3D11_BLEND_ONE; rt.BlendOp = D3D11_BLEND_OP_REV_SUBTRACT; break;
                 }
                 g_dev->CreateBlendState(&bd, &g_blend[i]);
             }
@@ -257,7 +266,7 @@ float4 main(VO i) : SV_Target
             return Available();
         }
 
-        bool Available() { return g_dev && g_vsFull && g_psBlur && g_psComposite && g_psBlend[3]; }
+        bool Available() { return g_dev && g_vsFull && g_psBlur && g_psComposite && g_psBlend[Blend_Count - 1]; }
 
         // ------------------------------------------------------------ render targets
 
@@ -294,7 +303,7 @@ float4 main(VO i) : SV_Target
             g_scene.Release();
             for (int i = 0; i < 3; i++) { g_blurA[i].Release(); g_blurB[i].Release(); }
             SafeRelease(g_vsFull); SafeRelease(g_psBlur); SafeRelease(g_psComposite);
-            for (int i = 0; i < 4; i++) { SafeRelease(g_psBlend[i]); SafeRelease(g_blend[i]); }
+            for (int i = 0; i < Blend_Count; i++) { SafeRelease(g_psBlend[i]); SafeRelease(g_blend[i]); }
             SafeRelease(g_cbBlur); SafeRelease(g_cbComposite);
             SafeRelease(g_sampClamp); SafeRelease(g_sampWrap); SafeRelease(g_rsScissor);
             g_dev = nullptr;
@@ -525,7 +534,7 @@ float4 main(VO i) : SV_Target
         void DrawTexture(ImDrawList* dl, ImTextureRef tex, ImVec2 a, ImVec2 b, const float r[4], ImVec2 uv0, ImVec2 uv1, ImU32 tint, int blend, bool wrap, float alpha)
         {
             if (b.x <= a.x || b.y <= a.y || alpha <= 0.0f) return;
-            blend = ImClamp(blend, 0, 3);
+            blend = ImClamp(blend, 0, Blend_Count - 1);
             ImU32 col = Fade(tint, alpha);
             if (!Available() || (blend == Blend_Normal && !wrap)) { ImageShape(dl, tex, a, b, r, uv0, uv1, col, true); return; }
             BlendCmd c = { blend, wrap ? 1 : 0 };
@@ -536,7 +545,7 @@ float4 main(VO i) : SV_Target
 
         void BeginBlend(ImDrawList* dl, int blend)
         {
-            blend = ImClamp(blend, 0, 3);
+            blend = ImClamp(blend, 0, Blend_Count - 1);
             if (blend == Blend_Normal || !Available()) return;
             BlendCmd c = { blend, 0 };
             dl->AddCallback(BlendCallback, &c, sizeof(c));
@@ -544,7 +553,7 @@ float4 main(VO i) : SV_Target
 
         void EndBlend(ImDrawList* dl, int blend)
         {
-            if (ImClamp(blend, 0, 3) == Blend_Normal || !Available()) return;
+            if (ImClamp(blend, 0, Blend_Count - 1) == Blend_Normal || !Available()) return;
             dl->AddCallback(ImGui::GetPlatformIO().DrawCallback_ResetRenderState, nullptr);
         }
 
@@ -683,9 +692,9 @@ float4 main(VO i) : SV_Target
                         }
                         if (scan0)
                         {
-                            // Large videos are decimated so the per-frame upload stays cheap.
+                            // Full HD plays as is; larger videos are decimated so the per-frame upload stays cheap.
                             UINT32 step = 1;
-                            while (std::max(w, h) / step > 1280) step++;
+                            while (std::max(w, h) / step > 1920) step++;
                             UINT32 ow = w / step, oh = h / step;
                             std::lock_guard<std::mutex> lock(v->mutex);
                             v->frame.resize((size_t)ow * oh * 4);

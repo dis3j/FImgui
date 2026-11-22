@@ -17,7 +17,7 @@ public final class FimAnim {
     // easings
     public static final int LINEAR = 0, EASE_IN = 1, EASE_OUT = 2, EASE_IN_OUT = 3, BACK_OUT = 4, ELASTIC_OUT = 5, BOUNCE_OUT = 6, SPRING = 7, BEZIER = 8;
     // keyframe properties
-    public static final int PROP_X = 0, PROP_Y = 1, PROP_SCALE = 2, PROP_OPACITY = 3;
+    public static final int PROP_X = 0, PROP_Y = 1, PROP_SCALE = 2, PROP_OPACITY = 3, PROP_ROTATION = 4;
 
     /** One keyframe track: times (seconds), values and the easing of the segment that starts at each key. */
     public static final class Track {
@@ -39,8 +39,8 @@ public final class FimAnim {
     }
 
     public static final class Value {
-        public float dx, dy, scale = 1, alpha = 1;
-        public boolean isIdentity() { return dx == 0 && dy == 0 && scale == 1 && alpha == 1; }
+        public float dx, dy, scale = 1, alpha = 1, rot;   // rot: degrees, clockwise
+        public boolean isIdentity() { return dx == 0 && dy == 0 && scale == 1 && alpha == 1 && rot == 0; }
     }
 
     private static final float PI = (float) Math.PI;
@@ -87,7 +87,7 @@ public final class FimAnim {
 
     public static float trackAt(Track tr, float time, float[] bz) {
         int n = tr.t.length;
-        if (n == 0) return tr.prop >= PROP_SCALE ? 1 : 0;
+        if (n == 0) return tr.prop == PROP_SCALE || tr.prop == PROP_OPACITY ? 1 : 0;
         if (time <= tr.t[0]) return tr.v[0];
         for (int i = 0; i + 1 < n; i++) {
             if (time > tr.t[i + 1]) continue;
@@ -107,6 +107,7 @@ public final class FimAnim {
                 case PROP_Y: v.dy = x; break;
                 case PROP_SCALE: v.scale = x; break;
                 case PROP_OPACITY: v.alpha = sat(x); break;
+                case PROP_ROTATION: v.rot = x; break;
             }
         }
         return v;

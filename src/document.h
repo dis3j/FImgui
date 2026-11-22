@@ -10,18 +10,36 @@
 
 using json = nlohmann::json;
 
-enum class NodeType { Frame, Group, Rect, Ellipse, Line, Text, Image, Vector };
+enum class NodeType { Frame, Group, Rect, Ellipse, Line, Text, Image, Vector, Path };   // Vector: SVG asset; Path: pen tool
 
 const char* NodeTypeName(NodeType t);
 bool        NodeTypeFromName(const std::string& s, NodeType* out);
 
+struct GradStop { float pos; ImVec4 color; };
+
 struct Paint
 {
-    int    type = 1;            // 0 none, 1 solid, 2 linear gradient
+    int    type = 1;            // 0 none, 1 solid, 2 linear, 3 radial, 4 angular, 5 diamond gradient (fim::PaintType)
     ImVec4 c0 = ImVec4(1, 1, 1, 1);
     ImVec4 c1 = ImVec4(0, 0, 0, 1);
-    float  angle = 90.0f;
+    float  angle = 90.0f;       // linear: direction; angular: start angle
+    std::vector<GradStop> stops;  // gradients with more stops (sorted); c0 / c1 mirror the first and last one
+
+    // The gradient stops: 'stops', or c0 at 0 and c1 at 1.
+    std::vector<GradStop> Stops() const;
+    // Sorts, keeps at least two stops and mirrors the ends into c0 / c1 (a plain two-stop gradient keeps no list).
+    void SetStops(std::vector<GradStop> s);
+    // After c0 / c1 were edited directly: carry them into the end stops.
+    void SyncEnds();
 };
+
+const char* PaintTypeKey(int type);         // "linear", "radial", ...
+const char* BlendModeKey(int blend);        // "normal", "plus-lighter", "multiply", ... (CSS mix-blend-mode names)
+const char* BlendModeLabel(int blend);      // "Normal", "Plus lighter", ...
+int         BlendModeFromKey(const std::string& s);
+// Blend modes in menu order (Figma's groups): normal | darken, multiply, plus darker | lighten, screen, plus lighter | exclusion
+extern const int kBlendMenu[8];
+const char* PaintTypeLabel(int type);       // "Linear", "Radial", ...
 
 struct Effect
 {
@@ -60,6 +78,11 @@ struct TextureFx
     int   fit = 2;                          // 0 fill, 1 fit, 2 tile
     float scale = 1.0f;                     // tile scale
     ImVec2 speed = ImVec2(0, 0);            // tile scroll, px/s
+    // Image adjustments (-1..1): exposure, contrast, saturation, temperature, tint, highlights, shadows.
+    // They are baked into a copy of the image ("asset"); "source" keeps the original.
+    float adjust[7] = { 0, 0, 0, 0, 0, 0, 0 };
+    std::string source;
+    bool Adjusted() const { for (float a : adjust) if (a != 0.0f) return true; return false; }
 };
 
 struct KeyTrackFx
@@ -95,6 +118,9 @@ const char* TriggerKey(int trigger);
 const char* AnimPropKey(int prop);         // "x", "y", "scale", "opacity"
 const char* AnimPropLabel(int prop);       // "Position X"...
 AnimFx AnimDefaults(int preset);
+// Animation <-> the "animation" JSON object of a layer (user presets, presets files).
+json   AnimToJson(const AnimFx& a);
+AnimFx AnimFromJson(const json& j);
 
 // Interactive role, mapped to ImGui behaviour in preview and in generated code.
 enum class Role { None, Button, Checkbox, Slider, Tab, Input, Combo, MultiCombo };
@@ -108,6 +134,7 @@ struct Node
     NodeType    type = NodeType::Rect;
 
     float x = 0, y = 0, w = 100, h = 100;   // relative to parent
+    float rotation = 0.0f;                  // degrees, clockwise around the center
     float opacity = 1.0f;
     bool  visible = true;
     bool  locked = false;
@@ -119,7 +146,7 @@ struct Node
     float strokeWidth = 1.0f;
     int   strokeAlign = 0;                  // 0 inside, 1 center, 2 outside
     int   fillHidden = 0, strokeHidden = 0;  // eye toggle: paint type to restore (paint.type is 0 while hidden)
-    int   blend = 0;                         // fill blend mode: 0 normal, 1 plus lighter, 2 multiply, 3 screen
+    int   blend = 0;                         // fill blend mode, fim::fx::Blend (BlendModeKey)
     Effect effect;
     BlurFx blur;
     GlassFx glass;
@@ -140,6 +167,13 @@ struct Node
     std::string asset;
     int   imageFit = 0;                     // 0 fill(cover), 1 fit(contain), 2 stretch
     bool  recolor = false;                  // vector: tint with fill color
+
+    // Path (pen tool): anchors in box units (0..1 of w / h), so resizing scales the shape
+    std::vector<fim::PathPoint> path;
+    bool  closed = true;
+    // Points in px relative to the box, and back (refit: the box shrinks / grows to the curve and moves with it).
+    std::vector<fim::PathPoint> PathPx() const;
+    void  SetPathPx(const std::vector<fim::PathPoint>& px, bool refit);
 
     // Auto layout (frames)
     int   layout = 0;                       // 0 none, 1 horizontal, 2 vertical
@@ -211,7 +245,7 @@ struct Document
     bool FromJson(const json& j, std::string* err = nullptr, const std::string& baseDir = "");
     std::unique_ptr<Node> CloneNode(const Node* n, bool newIds);
 
-    void ApplyLayout();   // recompute auto-layout positions/sizes
+    void ApplyLayout();   // recompute auto-layout positions/sizes (layers hidden by "Show when" take no space, see g_layoutVars)
     void FitText(Node* n); // auto-size text nodes
 };
 

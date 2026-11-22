@@ -10,13 +10,22 @@
 
 static ImU32 U32(ImVec4 c) { return ImGui::ColorConvertFloat4ToU32(c); }
 
+// The stops live in a buffer reused by the next call: draw with the result right away.
 static fim::Paint ToPaint(const Paint& p)
 {
+    static std::vector<fim::GradientStop> stops;
     fim::Paint o;
     o.type = p.type;
     o.c0 = U32(p.c0);
     o.c1 = U32(p.c1);
     o.angle = p.angle;
+    if (p.type >= 2 && p.stops.size() >= 2)
+    {
+        stops.clear();
+        for (auto& s : p.stops) stops.push_back({ s.pos, U32(s.color) });
+        o.stops = stops.data();
+        o.stopCount = (int)stops.size();
+    }
     return o;
 }
 
@@ -85,6 +94,10 @@ void EnsureVars(Document& doc, VarStore& vars)
         vars.defaults[v.name] = v.def;
     }
 }
+
+const VarStore* g_layoutVars = nullptr;
+
+bool LayoutConditionVisible(const Node* n) { return !g_layoutVars || NodeConditionVisible(n, *g_layoutVars); }
 
 bool NodeConditionVisible(const Node* n, const VarStore& vars)
 {
@@ -185,6 +198,73 @@ void NodeWorldRect(Node* n, const VarStore* vars, ImVec2* a, ImVec2* b)
     *b = ImVec2(a->x + w, a->y + h);
 }
 
+ImVec2 RotatePoint(ImVec2 p, ImVec2 c, float deg)
+{
+    if (deg == 0.0f) return p;
+    float s = std::sin(deg * 3.14159265f / 180.0f), k = std::cos(deg * 3.14159265f / 180.0f);
+    float x = p.x - c.x, y = p.y - c.y;
+    return ImVec2(c.x + x * k - y * s, c.y + x * s + y * k);
+}
+
+float NodeWorldRotation(const Node* n)
+{
+    float r = 0;
+    for (const Node* q = n; q; q = q->parent) r += q->rotation;
+    return r;
+}
+
+bool HasRotation(const Node* n)
+{
+    for (const Node* q = n; q; q = q->parent) if (q->rotation != 0.0f) return true;
+    return false;
+}
+
+static ImVec2 NodeCenter(Node* n, const VarStore* vars)
+{
+    ImVec2 a, b;
+    NodeWorldRect(n, vars, &a, &b);
+    return ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+}
+
+// Rendering turns a layer around its own (unrotated) center, then each ancestor turns everything around its center.
+ImVec2 NodeToWorld(Node* n, const VarStore* vars, ImVec2 p, bool selfToo)
+{
+    for (Node* q = selfToo ? n : n->parent; q; q = q->parent)
+        if (q->rotation != 0.0f) p = RotatePoint(p, NodeCenter(q, vars), q->rotation);
+    return p;
+}
+
+ImVec2 WorldToNode(Node* n, const VarStore* vars, ImVec2 w, bool selfToo)
+{
+    Node* chain[64];
+    int count = 0;
+    for (Node* q = selfToo ? n : n->parent; q && count < 64; q = q->parent) chain[count++] = q;
+    for (int i = count - 1; i >= 0; i--)
+        if (chain[i]->rotation != 0.0f) w = RotatePoint(w, NodeCenter(chain[i], vars), -chain[i]->rotation);
+    return w;
+}
+
+void NodeWorldQuad(Node* n, const VarStore* vars, ImVec2 q[4])
+{
+    ImVec2 a, b;
+    NodeWorldRect(n, vars, &a, &b);
+    q[0] = a; q[1] = ImVec2(b.x, a.y); q[2] = b; q[3] = ImVec2(a.x, b.y);
+    for (int i = 0; i < 4; i++) q[i] = NodeToWorld(n, vars, q[i]);
+}
+
+void NodeWorldBounds(Node* n, const VarStore* vars, ImVec2* a, ImVec2* b)
+{
+    if (!HasRotation(n)) { NodeWorldRect(n, vars, a, b); return; }
+    ImVec2 q[4];
+    NodeWorldQuad(n, vars, q);
+    *a = q[0]; *b = q[0];
+    for (int i = 1; i < 4; i++)
+    {
+        a->x = std::min(a->x, q[i].x); a->y = std::min(a->y, q[i].y);
+        b->x = std::max(b->x, q[i].x); b->y = std::max(b->y, q[i].y);
+    }
+}
+
 fim::ComboStyle ComboStyleFor(const Node* n, float z)
 {
     fim::ComboStyle cs;
@@ -268,9 +348,19 @@ void RenderNode(RenderCtx& ctx, Node* n, ImVec2 parentWorld, float parentAlpha, 
     }
     // Timeline open: keyframe animations show the playhead time instead of running.
     bool scrub = ctx.timeline >= 0 && spec && spec->preset == fim::Anim_Keyframes;
+    // The layer turns around its center together with its children: the vertices are rotated after drawing.
+    auto body = [&](RenderCtx& c, float alpha, ImVec2 center, float rot) {
+        if (rot == 0.0f) { RenderBody(c, n, world, lw, lh, alpha, a, b); return; }
+        int v0 = fim::RotateBegin(c.dl);
+        c.rotated++;
+        RenderBody(c, n, world, lw, lh, alpha, a, b);
+        c.rotated--;
+        fim::RotateEnd(c.dl, v0, center, rot);
+    };
+    ImVec2 rc((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
     if (!run && !scrub)
     {
-        RenderBody(ctx, n, world, lw, lh, parentAlpha, a, b);
+        body(ctx, parentAlpha, rc, n->rotation);
         return;
     }
 
@@ -296,7 +386,7 @@ void RenderNode(RenderCtx& ctx, Node* n, ImVec2 parentWorld, float parentAlpha, 
 
     if (v.dx == 0 && v.dy == 0 && v.scale == 1 && v.alpha == 1)
     {
-        RenderBody(ctx, n, world, lw, lh, parentAlpha, a, b);
+        body(ctx, parentAlpha, rc, n->rotation + v.rot);
         return;
     }
     // Scale the whole subtree around the node center and offset it.
@@ -305,7 +395,7 @@ void RenderNode(RenderCtx& ctx, Node* n, ImVec2 parentWorld, float parentAlpha, 
     ImVec2 sc(ctx.origin.x + wc.x * z + v.dx * z, ctx.origin.y + wc.y * z + v.dy * z);
     sub.zoom = z * v.scale;
     sub.origin = ImVec2(sc.x - wc.x * sub.zoom, sc.y - wc.y * sub.zoom);
-    RenderBody(sub, n, world, lw, lh, parentAlpha * v.alpha, a, b);
+    body(sub, parentAlpha * v.alpha, sc, n->rotation + v.rot);
 }
 
 static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh, float parentAlpha, ImVec2 ia, ImVec2 ib)
@@ -389,7 +479,7 @@ static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh
         ImVec4 base = fill.c0;
         if (n->hasHover) base = ImLerp(base, n->hoverColor, th);
         if (n->hasActive) base = ImLerp(base, n->activeColor, ta);
-        if (fill.type == 2 && (th > 0 || ta > 0)) fill.type = 1;
+        if (fill.type >= 2 && (th > 0 || ta > 0)) fill.type = 1;
         fill.c0 = base;
     }
 
@@ -475,6 +565,11 @@ static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh
     case NodeType::Line:
         fim::DrawLine(dl, a, ImVec2(b.x, a.y), U32(n->stroke.c0), std::max(0.5f, n->strokeWidth * z), alpha);
         break;
+    case NodeType::Path:
+        fim::fx::BeginBlend(dl, n->blend);
+        fim::DrawPath(dl, a, b, n->path.data(), (int)n->path.size(), n->closed, ToPaint(fill), U32(n->stroke.c0), n->stroke.type ? n->strokeWidth * z : 0.0f, alpha);
+        fim::fx::EndBlend(dl, n->blend);
+        break;
     case NodeType::Text:
         if (!(ctx.hideTextOf && *ctx.hideTextOf == n->id))
         {
@@ -520,7 +615,7 @@ static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh
 
     if (!n->children.empty())
     {
-        bool clip = n->type == NodeType::Frame && n->clip;
+        bool clip = n->type == NodeType::Frame && n->clip && !ctx.rotated;   // a clip rect cannot turn with the layer
         if (clip) dl->PushClipRect(a, b, true);
         // Input placeholder text hides once the field has content or focus.
         bool hidePlaceholder = n->role == Role::Input && ctx.interactive && ctx.vars && (active || !ctx.vars->str[n->var].empty());
@@ -535,7 +630,7 @@ static void RenderBody(RenderCtx& ctx, Node* n, ImVec2 world, float lw, float lh
         if (clip) dl->PopClipRect();
     }
 
-    if (n->stroke.type && n->type != NodeType::Line)
+    if (n->stroke.type && n->type != NodeType::Line && n->type != NodeType::Path)
     {
         if (n->type == NodeType::Ellipse) fim::StrokeEllipse(dl, a, b, U32(n->stroke.c0), n->strokeWidth * z, alpha);
         else fim::StrokeRect(dl, a, b, r, U32(n->stroke.c0), n->strokeWidth * z, n->strokeAlign, alpha);

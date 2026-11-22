@@ -226,11 +226,21 @@ struct Gen
         return buf + ".c_str()";
     }
 
-    std::string PaintLit(const Paint& p)
+    // sym: prefix for a static stop array (gradients with more than two stops).
+    std::string PaintLit(const Paint& p, const std::string& sym = "")
     {
+        static const char* kinds[] = { "fim::Paint_None", "fim::Paint_Solid", "fim::Paint_Linear", "fim::Paint_Radial", "fim::Paint_Angular", "fim::Paint_Diamond" };
         if (p.type == 0) return "fim::Paint{}";
         if (p.type == 1) return "fim::Paint{fim::Paint_Solid, " + Col(p.c0) + "}";
-        return "fim::Paint{fim::Paint_Linear, " + Col(p.c0) + ", " + Col(p.c1) + ", " + F(p.angle) + "}";
+        std::string lit = std::string("fim::Paint{") + kinds[std::clamp(p.type, 2, 5)] + ", " + Col(p.c0) + ", " + Col(p.c1) + ", " + F(p.angle);
+        if (p.stops.size() >= 2 && !sym.empty())
+        {
+            std::string list;
+            for (auto& s : p.stops) list += (list.empty() ? "" : ", ") + std::string("{ ") + F(s.pos) + ", " + Col(s.color) + " }";
+            L("static const fim::GradientStop " + sym + "_gs[] = { " + list + " };");
+            lit += ", " + sym + "_gs, " + std::to_string(p.stops.size());
+        }
+        return lit + "}";
     }
 
     // tracksSym: name of a static fim::KeyTrack array emitted by KeyTracks() (keyframe animations).
@@ -261,6 +271,50 @@ struct Gen
         return sym + "_kt";
     }
 
+    // ---- auto layout at runtime: frames whose children appear / disappear with state get their positions computed
+    // every frame (fim::AutoLayout), so hidden layers take no space in the exported menu either.
+    std::map<const Node*, std::string> layoutSym;   // frame -> "lyN": items lyN[], size lyN_W / lyN_H
+    std::map<const Node*, int> layoutIndex;          // child -> index in its parent's items
+    int rotDepth = 0;                                // inside a rotated layer (clip rects cannot turn)
+
+    bool DynLayout(const Node* n)
+    {
+        if (n->type != NodeType::Frame || !n->layout) return false;
+        for (auto& c : n->children)
+            if (c->visible && (!CondExpr(c.get()).empty() || DynSize(c.get()))) return true;
+        return false;
+    }
+    bool DynSize(const Node* n) { return (n->hugW || n->hugH) && DynLayout(n); }
+
+    void EmitLayout(Node* n)
+    {
+        if (layoutSym.count(n)) return;
+        for (auto& c : n->children) if (c->visible && DynLayout(c.get())) EmitLayout(c.get());
+        std::string ly = "ly" + std::to_string(++counter);
+        bool horiz = n->layout == 1;
+        std::string items;
+        int i = 0;
+        for (auto& cp : n->children)
+        {
+            Node* c = cp.get();
+            if (!c->visible) continue;
+            std::string cond = CondExpr(c);
+            bool ds = DynSize(c);
+            std::string w = ds ? layoutSym[c] + "_W" : F(c->w), h = ds ? layoutSym[c] + "_H" : F(c->h);
+            bool fm = horiz ? c->fillW : c->fillH, fc = horiz ? c->fillH : c->fillW;
+            items += (items.empty() ? "" : ", ") + std::string("{ ") + w + ", " + h + ", " + (cond.empty() ? "true" : cond) + ", " + (fm ? "true" : "false") + ", " +
+                     (fc ? "true" : "false") + ", 0.0f, 0.0f }";
+            layoutIndex[c] = i++;
+        }
+        L("// auto layout of " + (n->name.empty() ? std::string("frame") : n->name) + " (layers hidden by state take no space)");
+        L("fim::LayoutItem " + ly + "[] = { " + items + " };");
+        L("float " + ly + "_W = " + F(n->w) + ", " + ly + "_H = " + F(n->h) + ";");
+        L("fim::AutoLayout(" + ly + ", " + std::to_string(i) + ", fim::LayoutSpec{ " + (horiz ? "true" : "false") + ", " + F(n->gap) + ", { " + F(n->pad[0]) + ", " + F(n->pad[1]) + ", " +
+          F(n->pad[2]) + ", " + F(n->pad[3]) + " }, " + std::to_string(n->alignMain) + ", " + std::to_string(n->alignCross) + ", " + ((horiz ? n->hugW : n->hugH) ? "true" : "false") + ", " +
+          ((horiz ? n->hugH : n->hugW) ? "true" : "false") + " }, &" + ly + "_W, &" + ly + "_H);");
+        layoutSym[n] = ly;
+    }
+
     std::string CondExpr(const Node* n)
     {
         auto it = vars.find(n->showVar);
@@ -284,9 +338,17 @@ struct Gen
         bool animated = spec != nullptr;
         std::string a = sym + "_a", b = sym + "_b";
         std::string ba = animated ? sym + "_a0" : a, bb = animated ? sym + "_b0" : b;   // un-animated rect
+        if (DynLayout(n)) EmitLayout(n);
 
         // Base rect (relative to the parent rect)
         float X = isRoot ? 0.0f : n->x, Y = isRoot ? 0.0f : n->y;
+        std::string XS = F(X), YS = F(Y), WS = F(n->w), HS = F(n->h);
+        if (!isRoot && n->parent && layoutSym.count(n->parent) && layoutIndex.count(n))
+        {
+            std::string it = layoutSym[n->parent] + "[" + std::to_string(layoutIndex[n]) + "]";
+            XS = it + ".x"; YS = it + ".y"; WS = it + ".w"; HS = it + ".h";
+        }
+        else if (layoutSym.count(n)) { WS = layoutSym[n] + "_W"; HS = layoutSym[n] + "_H"; }
         Node* owner = n->sliderPart ? SliderOwner(n) : nullptr;
         if (owner && nodeSym.count(owner))
         {
@@ -294,12 +356,12 @@ struct Gen
             float span = owner->vmax - owner->vmin;
             L("const float " + sym + "_t = ImClamp(((float)" + V(owner->var) + " - " + F(owner->vmin) + ") / " + F(span == 0 ? 1.0f : span) + ", 0.0f, 1.0f);");
             if (n->sliderPart == 1)
-                L("const ImVec2 " + ba + "(" + oa + ".x, " + pa + ".y + " + F(Y) + " * " + sv + "), " + bb + "(" + oa + ".x + IM_ROUND(" + F(owner->w) + " * " + sv + " * " + sym + "_t), " + ba + ".y + " + F(n->h) + " * " + sv + ");");
+                L("const ImVec2 " + ba + "(" + oa + ".x, " + pa + ".y + " + YS + " * " + sv + "), " + bb + "(" + oa + ".x + IM_ROUND(" + F(owner->w) + " * " + sv + " * " + sym + "_t), " + ba + ".y + " + HS + " * " + sv + ");");
             else
-                L("const ImVec2 " + ba + "(IM_ROUND(" + oa + ".x + " + F(owner->w) + " * " + sv + " * " + sym + "_t - " + F(n->w * 0.5f) + " * " + sv + "), " + pa + ".y + " + F(Y) + " * " + sv + "), " + bb + "(" + ba + ".x + " + F(n->w) + " * " + sv + ", " + ba + ".y + " + F(n->h) + " * " + sv + ");");
+                L("const ImVec2 " + ba + "(IM_ROUND(" + oa + ".x + " + F(owner->w) + " * " + sv + " * " + sym + "_t - " + F(n->w * 0.5f) + " * " + sv + "), " + pa + ".y + " + YS + " * " + sv + "), " + bb + "(" + ba + ".x + " + WS + " * " + sv + ", " + ba + ".y + " + HS + " * " + sv + ");");
         }
         else
-            L("const ImVec2 " + ba + "(" + pa + ".x + " + F(X) + " * " + sv + ", " + pa + ".y + " + F(Y) + " * " + sv + "), " + bb + "(" + ba + ".x + " + F(n->w) + " * " + sv + ", " + ba + ".y + " + F(n->h) + " * " + sv + ");");
+            L("const ImVec2 " + ba + "(" + pa + ".x + " + XS + " * " + sv + ", " + pa + ".y + " + YS + " * " + sv + "), " + bb + "(" + ba + ".x + " + WS + " * " + sv + ", " + ba + ".y + " + HS + " * " + sv + ");");
 
         // Interaction (on the un-animated rect)
         std::string hov = "false", act = "false", held;
@@ -397,6 +459,15 @@ struct Gen
         }
         auto M = [&](float v) { return F(v) + " * " + nsv; };
 
+        // Rotation: the layer and its children are drawn, then their vertices turn around the (animated) center.
+        bool rotKeys = animated && spec->preset == fim::Anim_Keyframes && spec->Track(fim::Prop_Rotation);
+        bool rotated = n->rotation != 0.0f || rotKeys;
+        if (rotated)
+        {
+            L("const int " + sym + "_rv = fim::RotateBegin(dl);");
+            rotDepth++;
+        }
+
         bool ellipse = n->type == NodeType::Ellipse;
         bool anyR = n->radius[0] || n->radius[1] || n->radius[2] || n->radius[3];
         std::string r = "nullptr";
@@ -407,7 +478,7 @@ struct Gen
         }
 
         // Fill paint (with animated hover / active states)
-        std::string paint = PaintLit(n->fill);
+        std::string paint = PaintLit(n->fill, sym);
         if (n->role != Role::None && (n->hasHover || n->hasActive))
         {
             ImVec4 base = n->fill.type ? n->fill.c0 : ImVec4(n->fill.c0.x, n->fill.c0.y, n->fill.c0.z, 0);
@@ -422,8 +493,8 @@ struct Gen
                 L("const float " + sym + "_k = fim::Animate(" + CStr(n->id + "#a") + ", " + act + " ? 1.0f : 0.0f);");
                 c = "fim::LerpColor(" + c + ", " + Col(n->activeColor) + ", " + sym + "_k)";
             }
-            if (n->fill.type == 2)
-                paint = "(" + (n->hasHover ? sym + "_hv" : std::string("0.0f")) + " + " + (n->hasActive ? sym + "_k" : std::string("0.0f")) + " > 0.0f ? fim::Paint{fim::Paint_Solid, " + c + "} : " + PaintLit(n->fill) + ")";
+            if (n->fill.type >= 2)
+                paint = "(" + (n->hasHover ? sym + "_hv" : std::string("0.0f")) + " + " + (n->hasActive ? sym + "_k" : std::string("0.0f")) + " > 0.0f ? fim::Paint{fim::Paint_Solid, " + c + "} : " + paint + ")";
             else
                 paint = "fim::Paint{fim::Paint_Solid, " + c + "}";
         }
@@ -534,6 +605,19 @@ struct Gen
             emitTexture();
             if (n->effect.type == 2) L("fim::DrawShadow(dl, " + a + ", " + b + ", nullptr, " + shadow + ", " + nsv + ", " + als + ", true);");
             break;
+        case NodeType::Path:
+        {
+            std::string pts;
+            for (auto& q : n->path)
+                pts += (pts.empty() ? "" : ", ") + std::string("{ ImVec2(") + F(q.p.x) + ", " + F(q.p.y) + "), ImVec2(" + F(q.in.x) + ", " + F(q.in.y) + "), ImVec2(" + F(q.out.x) + ", " + F(q.out.y) + ") }";
+            if (pts.empty()) break;
+            L("static const fim::PathPoint " + sym + "_pp[] = { " + pts + " };");
+            if (n->blend) { usesFx = true; L("fim::fx::BeginBlend(dl, " + std::to_string(n->blend) + ");"); }
+            L("fim::DrawPath(dl, " + a + ", " + b + ", " + sym + "_pp, " + std::to_string(n->path.size()) + ", " + (n->closed ? "true" : "false") + ", " + paint + ", " +
+              Col(n->stroke.c0) + ", " + (n->stroke.type ? M(n->strokeWidth) : std::string("0.0f")) + ", " + als + ");");
+            if (n->blend) L("fim::fx::EndBlend(dl, " + std::to_string(n->blend) + ");");
+            break;
+        }
         case NodeType::Line:
             L("fim::DrawLine(dl, " + a + ", ImVec2(" + b + ".x, " + a + ".y), " + Col(n->stroke.c0) + ", " + M(std::max(0.5f, n->strokeWidth)) + ", " + als + ");");
             break;
@@ -567,7 +651,7 @@ struct Gen
 
         if (!n->children.empty())
         {
-            bool clip = n->type == NodeType::Frame && n->clip;
+            bool clip = n->type == NodeType::Frame && n->clip && !rotDepth;   // a clip rect cannot turn with the layer
             if (clip) L("dl->PushClipRect(" + a + ", " + b + ", true);");
             bool placeholder = n->role == Role::Input && n->var.size() && vars.count(n->var);
             bool stagger = n->anim.preset && n->anim.stagger > 0.0f;
@@ -590,7 +674,7 @@ struct Gen
             if (clip) L("dl->PopClipRect();");
         }
 
-        if (n->stroke.type && n->type != NodeType::Line)
+        if (n->stroke.type && n->type != NodeType::Line && n->type != NodeType::Path)
         {
             if (ellipse) L("fim::StrokeEllipse(dl, " + a + ", " + b + ", " + Col(n->stroke.c0) + ", " + M(n->strokeWidth) + ", " + als + ");");
             else L("fim::StrokeRect(dl, " + a + ", " + b + ", " + r + ", " + Col(n->stroke.c0) + ", " + M(n->strokeWidth) + ", " + std::to_string(n->strokeAlign) + ", " + als + ");");
@@ -603,6 +687,13 @@ struct Gen
             std::string font = label ? FontSym(label->fontFamily, label->fontStyle) : FontSym("Inter", "Regular");
             L("fim::InputBehavior(" + id + ", " + a + ", " + b + ", " + V(n->var) + ", (int)sizeof(" + V(n->var) + "), " + font + ", " + M(label ? label->fontSize : 13.0f) + ", "
               + Col(label ? label->fill.c0 : ImVec4(1, 1, 1, 1)) + ", " + M(label ? label->x : 8.0f) + ");");
+        }
+
+        if (rotated)
+        {
+            rotDepth--;
+            std::string deg = F(n->rotation) + (rotKeys ? " + " + sym + "_an.rot" : "");
+            L("fim::RotateEnd(dl, " + sym + "_rv, ImVec2((" + a + ".x + " + b + ".x) * 0.5f, (" + a + ".y + " + b + ".y) * 0.5f), " + deg + ");");
         }
 
         ind--;
@@ -856,7 +947,13 @@ ExportResult ExportProject(Document& doc, const ExportOptions& opt, const std::s
         if (platform::WriteFile(p.u8string(), d.data(), d.size())) res.files.push_back(fs::relative(p, out, ec).u8string());
     };
 
+    // Static positions are those of the starting state; frames with state-dependent children lay out at runtime.
+    VarStore start;
+    EnsureVars(doc, start);
+    const VarStore* layoutVars = g_layoutVars;
+    g_layoutVars = &start;
     doc.ApplyLayout();
+    g_layoutVars = layoutVars;
     Gen g(doc);
     g.CollectState();
 

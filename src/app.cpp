@@ -9,6 +9,7 @@
 #include "imgui_internal.h"
 #include <windows.h>
 #include <wincrypt.h>
+#include "widgets.h"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -146,6 +147,8 @@ void App::Frame()
     ImGuiIO& io = ImGui::GetIO();
     AiPump();
     g_textVars = &vars;
+    // Layers hidden by "Show when" take no space in auto layout (unless the editor shows every conditional layer).
+    g_layoutVars = ignoreConditions && !preview ? nullptr : &vars;
     // While dragging, children of auto-layout frames float freely; layout re-applies on drop.
     if (m_drag != Drag::Move) doc.ApplyLayout();
     EnsureVars(doc, vars);
@@ -519,6 +522,12 @@ void App::SaveSettings()
     j["workspace"] = workspace;
     j["showHomeOnStart"] = showHomeOnStart;
     j["checkUpdates"] = checkUpdates;
+    json saved = json::array();
+    for (auto& c : ui::SavedColors()) saved.push_back(ColorToHex(c, true));
+    j["savedColors"] = saved;
+    json presets = json::array();
+    for (auto& p : userPresets) presets.push_back({ { "name", p.name }, { "animation", AnimToJson(p.anim) } });
+    j["animPresets"] = presets;
     j["uiScale"] = uiScale;
     j["skippedVersion"] = skippedVersion;
     j["lastSeenVersion"] = lastSeenVersion;
@@ -558,6 +567,17 @@ void App::LoadSettings()
     pixelGrid = j.value("pixelGrid", pixelGrid);
     workspace = j.value("workspace", workspace);
     showHomeOnStart = j.value("showHomeOnStart", showHomeOnStart);
+    if (j.contains("animPresets") && j["animPresets"].is_array())
+    {
+        userPresets.clear();
+        for (auto& p : j["animPresets"])
+            if (p.is_object() && p.contains("animation")) userPresets.push_back({ p.value("name", std::string("Preset")), AnimFromJson(p["animation"]) });
+    }
+    if (j.contains("savedColors") && j["savedColors"].is_array())
+    {
+        ui::SavedColors().clear();
+        for (auto& c : j["savedColors"]) if (c.is_string()) { ImVec4 v; if (HexToColor(c.get<std::string>(), &v)) ui::SavedColors().push_back(v); }
+    }
     checkUpdates = j.value("checkUpdates", checkUpdates);
     uiScale = std::clamp(j.value("uiScale", uiScale), 0.8f, 2.0f);
     skippedVersion = j.value("skippedVersion", skippedVersion);
@@ -1084,6 +1104,18 @@ bool App::RenderNodePNG(Node* n, float scale, std::vector<unsigned char>& png, i
     ImVec2 a, b;
     NodeWorldRect(n, &vars, &a, &b);
     if (n->type == NodeType::Line) { a.y -= n->strokeWidth * 0.5f; b.y = a.y + std::max(1.0f, n->strokeWidth); }
+    if (n->rotation != 0.0f)
+    {
+        // the layer is rendered alone, so only its own rotation widens the image
+        ImVec2 c((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), q[4] = { a, ImVec2(b.x, a.y), b, ImVec2(a.x, b.y) };
+        a = b = RotatePoint(q[0], c, n->rotation);
+        for (int i = 1; i < 4; i++)
+        {
+            ImVec2 p = RotatePoint(q[i], c, n->rotation);
+            a = ImVec2(std::min(a.x, p.x), std::min(a.y, p.y));
+            b = ImVec2(std::max(b.x, p.x), std::max(b.y, p.y));
+        }
+    }
     ExpandForEffects(n, a, b);
     a.x = std::floor(a.x); a.y = std::floor(a.y);
     b.x = std::ceil(b.x); b.y = std::ceil(b.y);
@@ -1117,6 +1149,8 @@ bool App::BakeLayerPNG(Node* n, int variant, float scale, std::vector<unsigned c
     Paint fill = n->fill;
     float width = n->w, opacity = n->opacity;
     AnimFx anim = n->anim;
+    float rotation = n->rotation;   // the Minecraft screen turns the texture itself
+    n->rotation = 0;
     n->opacity = 1.0f;
     n->anim.preset = 0;
     if (variant == 1) n->fill = Paint{ 1, n->hoverColor };
@@ -1131,6 +1165,7 @@ bool App::BakeLayerPNG(Node* n, int variant, float scale, std::vector<unsigned c
     n->w = width;
     n->opacity = opacity;
     n->anim = anim;
+    n->rotation = rotation;
     if (ok && offset) *offset = ImVec2(wmin.x - a.x, wmin.y - a.y);
     return ok;
 }

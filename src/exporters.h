@@ -19,6 +19,10 @@ std::string MakeTextureAsset(Document& doc, int pattern);   // 0 noise, 1 scanli
 // Baked "shader" fill: 0 aurora, 1 mesh, 2 waves, 3 radial glow, 4 plasma. Returns the new asset id.
 std::string MakeShaderAsset(Document& doc, int style, ImVec4 c0, ImVec4 c1);
 extern const char* const kShaderStyleNames[5];
+// Image adjustments (exposure, contrast, saturation, temperature, tint, highlights, shadows; -1..1) baked into a copy of
+// the raster asset 'source'. 'reuse' (an earlier adjusted copy) is overwritten. Returns the asset id, "" on failure.
+std::string BakeAdjustedImage(Document& doc, const std::string& source, const float adjust[7], const std::string& reuse);
+extern const char* const kAdjustNames[7];
 Node* ImportImage(Document& doc, const std::vector<unsigned char>& bytes, const std::string& name, Node* parent, ImVec2 localPos);
 
 std::string SanitizeIdent(const std::string& s, const char* fallback = "item");
