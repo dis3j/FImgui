@@ -35,6 +35,7 @@ add_executable(Fimgui WIN32
     src/codegen_web.cpp
     src/web_preview.cpp
     src/ui_web.cpp
+    src/ui_code.cpp
     src/updater.cpp
     src/project.cpp
     src/mcp_server.cpp

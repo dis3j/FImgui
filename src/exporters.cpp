@@ -1,4 +1,5 @@
 #include "exporters.h"
+#include "codemap.h"
 #include "renderer.h"
 #include "gfx.h"
 #include "fonts.h"
@@ -64,6 +65,7 @@ int CssFontWeight(const std::string& style) { return StyleToWeight(style); }
 static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChildren, int depth)
 {
     std::string ind(depth * 2, ' ');
+    codemap::Begin(o, n->id);
     o << ind << "/* " << (n->name.empty() ? NodeTypeName(n->type) : n->name) << " */\n";
     o << ind << "position: absolute;\n";
     o << ind << "width: " << Px(n->w) << ";\n";
@@ -144,6 +146,7 @@ static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChild
             o << ind << "animation: " << name << " " << Fmt(cat == 1 ? a.duration + a.delay : a.duration) << "s linear " << (cat == 0 ? Fmt(a.delay) + "s both" : "infinite") << ";\n";
     }
     if (n->type == NodeType::Text) o << ind << "/* content: \"" << n->text << "\" */\n";
+    codemap::End(o);
     if (withChildren)
         for (auto& c : n->children) { o << "\n"; CssFor(doc, c.get(), o, true, depth + 1); }
 }
@@ -251,6 +254,7 @@ static std::string RoundRectPath(float x, float y, float w, float h, const float
 static void SvgNode(Document& doc, SvgCtx& s, Node* n, float ox, float oy, std::ostringstream& o)
 {
     if (!n->visible) return;
+    codemap::Begin(o, n->id);
     float x = ox + n->x, y = oy + n->y, w = n->w, h = n->h;
     std::string filter;
     if (n->effect.type == 1)
@@ -393,6 +397,7 @@ static void SvgNode(Document& doc, SvgCtx& s, Node* n, float ox, float oy, std::
         }
     }
     o << "</g>\n";
+    codemap::End(o);
 }
 
 std::string NodeToSVG(Document& doc, Node* n)

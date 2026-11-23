@@ -1229,47 +1229,6 @@ void App::DrawPrototypeTab()
     ImGui::PopID();
 }
 
-// ---------------------------------------------------------------- code tab
-
-void App::DrawCodeTab()
-{
-    float W = ui::Avail();
-    const char* langs[] = { "CSS", "SVG", "ImGui", "JSON", "HTML" };
-    ImGui::Dummy(ImVec2(0, U(4)));
-    ui::Segmented("##lang", &codeLang, langs, 5, W);
-    Node* n = Sel();
-    static std::string code;
-    static std::string key;
-    static int frameCounter = 0;
-    std::string k = (n ? n->id : std::string("-")) + "|" + std::to_string(codeLang);
-    if (k != key || ++frameCounter % 20 == 0)
-    {
-        key = k;
-        if (!n) code = "// Select a layer to inspect its code.\n// Export > ImGui project generates the full menu.";
-        else switch (codeLang)
-        {
-        case 0: code = NodeToCSS(doc, n, true); break;
-        case 1: code = NodeToSVG(doc, n); if (code.size() > 200000) code = code.substr(0, 200000) + "\n<!-- truncated -->"; break;
-        case 2: code = GenerateSnippet(doc, n); break;
-        case 3: code = NodeToJson(n).dump(2); break;
-        case 4: code = NodeToHTML(doc, n); break;
-        }
-    }
-    ImGui::Dummy(ImVec2(0, U(2)));
-    if (ui::PrimaryButton("Copy", ImVec2(W * 0.5f - U(3), 0)) && n)
-    {
-        if (codeLang == 3) CopyAs(4);
-        else { platform::SetClipboardText(code); Toast("Copied " + std::string(langs[codeLang])); }
-    }
-    ImGui::SameLine(0, U(6));
-    if (ImGui::Button("Copy PNG @2x", ImVec2(W * 0.5f - U(3), 0))) CopyAs(2);
-    ImGui::PushFont(nullptr, 0.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(30, 30, 30, 255));
-    ImGui::InputTextMultiline("##code", code.data(), code.size() + 1, ImVec2(W, ImGui::GetContentRegionAvail().y - U(8)), ImGuiInputTextFlags_ReadOnly);
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-}
-
 // ---------------------------------------------------------------- toolbar
 
 void App::DrawToolbar()
@@ -1644,9 +1603,11 @@ void App::HandleShortcuts()
         if (P(ImGuiKey_Escape) || (ctrl && P(ImGuiKey_Enter))) preview = false;
         return;
     }
+    bool codeKeys = ImGui::GetFrameCount() - codeFocusFrame <= 1;   // the Code tab copies / selects its own text
     if (ctrl)
     {
-        if (P(ImGuiKey_Z)) { if (shift) Redo(); else Undo(); }
+        if (codeKeys && (P(ImGuiKey_C) || P(ImGuiKey_A))) {}
+        else if (P(ImGuiKey_Z)) { if (shift) Redo(); else Undo(); }
         else if (P(ImGuiKey_Y)) Redo();
         else if (P(ImGuiKey_C)) { if (shift) CopyAs(2); else CopySelection(); }
         else if (P(ImGuiKey_X)) CutSelection();

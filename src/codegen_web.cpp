@@ -1,5 +1,6 @@
 // Web export (HTML Living Standard + modern CSS): pages, shared stylesheet, runtime, media and fonts.
 #include "codegen_web.h"
+#include "codemap.h"
 #include "exporters.h"
 #include "renderer.h"
 #include "fonts.h"
@@ -266,6 +267,13 @@ a { color: inherit; text-decoration: none; }
         void Emit(Node* n, std::ostringstream& h, int depth, bool phrasing, const AnimFx* inh, float inhDelay)
         {
             if (!n->visible) return;
+            codemap::Begin(h, n->id); codemap::Begin(css, n->id); codemap::Begin(states, n->id);
+            EmitLayer(n, h, depth, phrasing, inh, inhDelay);
+            codemap::End(h); codemap::End(css); codemap::End(states);
+        }
+
+        void EmitLayer(Node* n, std::ostringstream& h, int depth, bool phrasing, const AnimFx* inh, float inhDelay)
+        {
             Node* parent = n->parent;
             bool root = !parent && !snippet;
             bool text = n->type == NodeType::Text;

@@ -1035,6 +1035,18 @@ void App::CanvasOverlay(ImDrawList* dl)
             else dl->AddPolyline(q, 4, Accent, ImDrawFlags_Closed, 2.0f);
         }
 
+    // Layer under the mouse in the Code tab
+    if (ImGui::GetFrameCount() - codeHoverFrame <= 1 && codeHoverId != m_hoverId)
+        if (Node* h = doc.Find(codeHoverId))
+            if (!IsSelected(h->id))
+            {
+                ImVec2 q[4];
+                NodeWorldQuad(h, &vars, q);
+                for (auto& p : q) p = WorldToScreen(p);
+                if (h->type == NodeType::Line) dl->AddLine(q[0], q[1], Accent, 2.0f);
+                else dl->AddPolyline(q, 4, Accent, ImDrawFlags_Closed, 2.0f);
+            }
+
     // Auto layout hints: show children bounds of selected auto-layout frame
     auto sel = SelNodes();
     for (Node* n : sel)

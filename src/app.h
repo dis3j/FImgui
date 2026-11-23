@@ -311,6 +311,9 @@ public:
     float leftW = 0, rightW = 0;
     int rightTab = 0;
     int codeLang = 2;
+    int codeScope = 0;                 // Code tab: 0 the whole frame with the selected layer marked, 1 the layer only
+    std::string codeHoverId;           // layer under the mouse in the Code tab (outlined on the canvas)
+    int codeHoverFrame = -10, codeFocusFrame = -10;
 
     // Animation playback
     AnimClocks animClocks;

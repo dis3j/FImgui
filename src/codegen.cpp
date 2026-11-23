@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "codemap.h"
 #include "renderer.h"
 #include "exporters.h"
 #include "fonts.h"
@@ -326,6 +327,7 @@ struct Gen
     void Emit(Node* n, const std::string& pa, const AlphaE& parentAlpha, const std::string& sv, bool isRoot, const AnimFx* inherited = nullptr, float extraDelay = 0.0f)
     {
         if (!n->visible) return;
+        codemap::Begin(o, n->id);
         std::string sym = "n" + std::to_string(++counter);
         nodeSym[n] = sym;
         L("// " + (n->name.empty() ? std::string(NodeTypeName(n->type)) : n->name) + " [" + NodeTypeName(n->type) + "]");
@@ -698,6 +700,7 @@ struct Gen
 
         ind--;
         L("}");
+        codemap::End(o);
     }
 
     std::string StateStruct(const std::string& name)
