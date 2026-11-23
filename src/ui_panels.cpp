@@ -508,6 +508,7 @@ void App::DrawDesignTab()
     {
         bool minecraft = IsMinecraft();
         if (minecraft) DrawMinecraftPanel(W);
+        if (IsWeb()) DrawWebPanel(W);
         ui::Section("Page");
         ImVec4 c = doc.canvasColor;
         if (ui::ColorRow("##canvas", &c, W)) { doc.canvasColor = c; MarkDirty(); }
@@ -531,14 +532,17 @@ void App::DrawDesignTab()
             ImGui::PopID();
         }
         ui::Section("Export");
-        if (ui::PrimaryButton(minecraft ? "Export Minecraft GUI..." : "Export ImGui project...", ImVec2(W, U(28)))) showExport = true;
+        if (ui::PrimaryButton(minecraft ? "Export Minecraft GUI..." : IsWeb() ? "Export website..." : "Export ImGui project...", ImVec2(W, U(28)))) showExport = true;
         ImGui::Dummy(ImVec2(0, U(6)));
-        ui::Label(minecraft ? "Generates the Screen, menu class, Java\nruntime, baked textures and fonts." : "Generates menu .h/.cpp, icons, images,\nfonts and an example host.");
+        ui::Label(minecraft ? "Generates the Screen, menu class, Java\nruntime, baked textures and fonts."
+                  : IsWeb() ? "Generates HTML pages, CSS, a small JS\nruntime, images and fonts."
+                  : "Generates menu .h/.cpp, icons, images,\nfonts and an example host.");
         return;
     }
 
     Node* n = nodes[0];
     bool multi = nodes.size() > 1;
+    if (IsWeb() && !multi && !n->parent && n->type == NodeType::Frame) DrawWebPageSection(n, W);
     ImGui::PushID(n->id.c_str());
 
     float fh = ImGui::GetFrameHeight();
@@ -1181,6 +1185,8 @@ void App::DrawPrototypeTab()
         if (n->hasActive) ch |= ui::ColorRow("##act", &n->activeColor, W);
     }
 
+    if (IsWeb() || !n->link.empty()) ch |= DrawLinkSection(n, W);
+
     ui::Section("Show when");
     bool cond = !n->showVar.empty();
     if (ui::Check("Only visible when variable matches", &cond))
@@ -1228,9 +1234,9 @@ void App::DrawPrototypeTab()
 void App::DrawCodeTab()
 {
     float W = ui::Avail();
-    const char* langs[] = { "CSS", "SVG", "ImGui", "JSON" };
+    const char* langs[] = { "CSS", "SVG", "ImGui", "JSON", "HTML" };
     ImGui::Dummy(ImVec2(0, U(4)));
-    ui::Segmented("##lang", &codeLang, langs, 4, W);
+    ui::Segmented("##lang", &codeLang, langs, 5, W);
     Node* n = Sel();
     static std::string code;
     static std::string key;
@@ -1246,6 +1252,7 @@ void App::DrawCodeTab()
         case 1: code = NodeToSVG(doc, n); if (code.size() > 200000) code = code.substr(0, 200000) + "\n<!-- truncated -->"; break;
         case 2: code = GenerateSnippet(doc, n); break;
         case 3: code = NodeToJson(n).dump(2); break;
+        case 4: code = NodeToHTML(doc, n); break;
         }
     }
     ImGui::Dummy(ImVec2(0, U(2)));
@@ -1323,7 +1330,7 @@ void App::DrawExportDialog()
         ImGui::OpenPopup("Export");
         showExport = false;
         lastExport = ExportResult();
-        if (!projectDir.empty()) exportTarget = projectType == Project_Minecraft ? 1 : 0;   // the project type picks the target
+        if (!projectDir.empty()) exportTarget = projectType;   // the project type picks the target
     }
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(U(560), 0));
@@ -1331,8 +1338,8 @@ void App::DrawExportDialog()
     if (ImGui::BeginPopupModal("Export", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
         float W = U(524);
-        const char* targets[] = { "Dear ImGui (C++)", "Minecraft Java" };
-        if (ui::Segmented("##target", &exportTarget, targets, 2, W)) lastExport = ExportResult();
+        const char* targets[] = { "Dear ImGui (C++)", "Minecraft Java", "Web (HTML)" };
+        if (ui::Segmented("##target", &exportTarget, targets, 3, W)) lastExport = ExportResult();
         ImGui::Dummy(ImVec2(0, U(4)));
         float lx = U(160);
         if (exportTarget == 0)
@@ -1358,6 +1365,30 @@ void App::DrawExportDialog()
             exportOpt.iconScale = std::round(exportOpt.iconScale);
             ui::Check("Embed fonts into the binary", &exportOpt.embedFonts);
             ui::Check("Write example host (Win32 + DirectX 11)", &exportOpt.writeExample);
+        }
+        else if (exportTarget == 2)
+        {
+            ui::Label("Output folder");
+            ui::TextField("##wdir", &webOpt.outDir, W - U(90), "C:\\path\\to\\site");
+            ImGui::SameLine();
+            if (ImGui::Button("Browse...##w", ImVec2(U(84), 0)))
+            {
+                std::string d = platform::PickFolderDialog("Site folder");
+                if (!d.empty()) webOpt.outDir = d;
+            }
+            ui::Label("Site title");
+            ImGui::SameLine(lx);
+            ui::TextField("##wtitle", &webOpt.title, W - lx, doc.name.c_str());
+            ui::Label("Language");
+            ImGui::SameLine(lx);
+            ui::TextField("##wlang", &webOpt.lang, W - lx, "en");
+            ui::Check("Fit pages into narrow windows", &webOpt.fitWidth);
+            ui::Check("Ship design fonts (@font-face)", &webOpt.fonts);
+            ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + W);
+            ImGui::TextUnformatted("Every top-level frame becomes a page: the first is index.html. Writes the pages, css/site.css, js/fimgui.js and assets/. Upload the folder to any static hosting.");
+            ImGui::PopTextWrapPos();
+            ImGui::PopStyleColor();
         }
         else
         {
@@ -1400,6 +1431,7 @@ void App::DrawExportDialog()
         for (auto& r : doc.roots) if (r->type == NodeType::Frame && r->visible) frames++;
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
         if (exportTarget == 0) ImGui::Text("%d top-level frame(s) -> ImGui windows, %d asset(s), %d state variable(s)", frames, (int)doc.assets.size(), (int)CollectVars(doc).size());
+        else if (exportTarget == 2) ImGui::Text("%d page(s) -> HTML, %d asset(s), %d state variable(s)", frames, (int)doc.assets.size(), (int)CollectVars(doc).size());
         else ImGui::Text("First top-level frame -> Minecraft Screen, %d state variable(s)", (int)CollectVars(doc).size());
         ImGui::PopStyleColor();
 
@@ -1416,10 +1448,15 @@ void App::DrawExportDialog()
             }
         }
         ImGui::Dummy(ImVec2(0, U(6)));
-        std::string& dir = exportTarget == 0 ? exportOpt.outDir : javaOpt.outDir;
+        std::string& dir = exportTarget == 0 ? exportOpt.outDir : exportTarget == 2 ? webOpt.outDir : javaOpt.outDir;
         if (ImGui::Button("Close", ImVec2(U(100), 0))) ImGui::CloseCurrentPopup();
         ImGui::SameLine();
         if (lastExport.ok && ImGui::Button("Open folder", ImVec2(U(110), 0))) platform::OpenInExplorer(dir);
+        if (lastExport.ok && exportTarget == 2)
+        {
+            ImGui::SameLine();
+            if (ImGui::Button("Open site", ImVec2(U(100), 0))) platform::OpenUrl((fs::u8path(dir) / "index.html").u8string());
+        }
         ImGui::SameLine(W - U(120) + ImGui::GetStyle().WindowPadding.x);
         if (ui::PrimaryButton("Export", ImVec2(U(120), 0)))
         {
@@ -1430,7 +1467,7 @@ void App::DrawExportDialog()
             }
             if (!dir.empty())
             {
-                lastExport = exportTarget == 0 ? ExportProject(doc, exportOpt, platform::ExeDir() + "/runtime") : RunJavaExport();
+                lastExport = exportTarget == 0 ? ExportProject(doc, exportOpt, platform::ExeDir() + "/runtime") : exportTarget == 2 ? RunWebExport() : RunJavaExport();
                 MarkDirty();
                 SaveSettings();
             }

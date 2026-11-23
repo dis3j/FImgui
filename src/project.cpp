@@ -20,8 +20,8 @@ std::string App::WorkspaceDir() const
     return workspace.empty() ? std::string("C:/FImgui") : workspace;
 }
 
-const char* ProjectTypeKey(int type) { return type == Project_Minecraft ? "minecraft" : "imgui"; }
-int ProjectTypeFromKey(const std::string& key) { return key == "minecraft" ? Project_Minecraft : Project_ImGui; }
+const char* ProjectTypeKey(int type) { return type == Project_Minecraft ? "minecraft" : type == Project_Web ? "web" : "imgui"; }
+int ProjectTypeFromKey(const std::string& key) { return key == "minecraft" ? Project_Minecraft : key == "web" ? Project_Web : Project_ImGui; }
 
 std::string ProjectFileName(const std::string& name)
 {
@@ -142,6 +142,23 @@ void App::ApplyProjectJavaSettings(const json& j)
     javaOpt.ttfFonts = j.value("ttfFonts", javaOpt.ttfFonts);
 }
 
+static json WebJson(const WebOptions& o, const std::string& projectDir)
+{
+    return { { "outDir", ProjectRelative(o.outDir, projectDir) }, { "title", o.title }, { "lang", o.lang }, { "fitWidth", o.fitWidth }, { "fonts", o.fonts } };
+}
+
+void App::ApplyProjectWebSettings(const json& j)
+{
+    webOpt = WebOptions();
+    webOpt.outDir = (fs::u8path(projectDir) / "export").u8string();
+    if (!j.is_object()) return;
+    webOpt.outDir = ProjectAbsolute(j.value("outDir", std::string("export")), projectDir);
+    webOpt.title = j.value("title", webOpt.title);
+    webOpt.lang = j.value("lang", webOpt.lang);
+    webOpt.fitWidth = j.value("fitWidth", webOpt.fitWidth);
+    webOpt.fonts = j.value("fonts", webOpt.fonts);
+}
+
 bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* err, int type)
 {
     if (!ValidProjectName(name, err)) return false;
@@ -169,7 +186,7 @@ bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* 
     projectDir = dir.u8string();
     filePath = (dir / ProjectFileName(name)).u8string();
     projectType = type;
-    exportTarget = type == Project_Minecraft ? 1 : 0;
+    exportTarget = type;
     ApplyProjectExportSettings(json());
     if (type == Project_Minecraft) ApplyProjectJavaSettings(json());
     if (type == Project_Minecraft && !fromCurrent)
@@ -179,6 +196,15 @@ bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* 
         f->name = name;
         f->fill = Paint{ 1, ImVec4(0.09f, 0.09f, 0.11f, 0.94f) };
         for (float& r : f->radius) r = 6;
+        fitPending = true;
+    }
+    if (type == Project_Web) ApplyProjectWebSettings(json());
+    if (type == Project_Web && !fromCurrent)
+    {
+        // The first page: index.html at a common desktop width.
+        Node* f = CreateNode(NodeType::Frame, ImVec2(0, 0), ImVec2(1440, 900), nullptr);
+        f->name = "Home";
+        f->fill = Paint{ 1, ImVec4(1, 1, 1, 1) };
         fitPending = true;
     }
     crash::SetContext("Editing " + filePath);
@@ -238,6 +264,7 @@ void App::SaveProject()
         j["project"]["minecraft"] = JavaJson(javaOpt, projectDir);
         j["project"]["minecraft"]["screen"] = { { "show", mcScreenShown }, { "window", mcWindow }, { "guiScale", mcGuiScale } };
     }
+    if (projectType == Project_Web) j["project"]["web"] = WebJson(webOpt, projectDir);
     if (!platform::WriteText(filePath, j.dump(1))) { Toast("Save failed", true); return; }
     modified = false;
     Toast("Saved to " + fs::u8path(projectDir).filename().u8string());

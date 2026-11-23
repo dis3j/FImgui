@@ -32,6 +32,9 @@ add_executable(Fimgui WIN32
     src/ui_timeline.cpp
     src/ui_picker.cpp
     src/codegen_java.cpp
+    src/codegen_web.cpp
+    src/web_preview.cpp
+    src/ui_web.cpp
     src/updater.cpp
     src/project.cpp
     src/mcp_server.cpp
@@ -92,5 +95,6 @@ add_custom_command(TARGET Fimgui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE $<TARGET_FILE_DIR:Fimgui>/runtime/FIMGUI_LICENSE.txt
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/CHANGELOG.md $<TARGET_FILE_DIR:Fimgui>/CHANGELOG.md
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/runtime/java $<TARGET_FILE_DIR:Fimgui>/runtime/java
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/runtime/web $<TARGET_FILE_DIR:Fimgui>/runtime/web
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/resources $<TARGET_FILE_DIR:Fimgui>/resources
 )

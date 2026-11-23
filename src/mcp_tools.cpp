@@ -62,9 +62,11 @@ json McpToolList()
     add("export_project", "Export project",
         "target 'imgui' writes the C++ project for all top-level frames: menu .h/.cpp, runtime, effects, icons, images, videos, fonts and a DirectX 11 example host. "
         "target 'minecraft' writes a Minecraft 1.21.1 GUI for the first top-level frame: a Screen for Fabric or NeoForge, the menu class, the Fimgui Java runtime, baked layer textures and TTF fonts (src/main/java + src/main/resources). "
-        "Without target, the type of the open project decides (Minecraft projects export for Minecraft).",
+        "target 'web' writes a static website: every top-level frame is a page (the first is index.html), css/site.css, js/fimgui.js (state, controls, Show when) and assets/; a layer's 'link' (\"page:<frame id>\" or a URL) becomes a link. "
+        "Without target, the type of the open project decides.",
         Schema({ { "out_dir", { { "type", "string" }, { "description", "Absolute output folder" } } },
-                 { "target", { { "type", "string" }, { "enum", { "imgui", "minecraft" } } } },
+                 { "target", { { "type", "string" }, { "enum", { "imgui", "minecraft", "web" } } } },
+                 { "title", { { "type", "string" }, { "description", "web: site title" } } }, { "lang", { { "type", "string" }, { "description", "web: page language, e.g. en" } } },
                  { "namespace", { { "type", "string" } } }, { "file_base", { { "type", "string" } } },
                  { "embed_fonts", { { "type", "boolean" } } },
                  { "loader", { { "type", "string" }, { "enum", { "fabric", "neoforge" } } } },
@@ -77,11 +79,11 @@ json McpToolList()
         Schema({ { "action", { { "type", "string" }, { "enum", { "undo", "redo" } } } }, { "steps", { { "type", "integer" }, { "minimum", 1 } } } }, { "action" }), false);
     add("document_file", "Document file",
         "Projects live in the workspace folder (default C:/FImgui) as <Name>/<name>.fimgui with fonts/, images/, icons/, videos/ and export/. "
-        "Actions: list_projects; new_project (name, type imgui|minecraft, default imgui); open_project (name or path); save (saves the project, or to path); new (blank unsaved design); open (any .fimgui path). "
+        "Actions: list_projects; new_project (name, type imgui|minecraft|web, default imgui); open_project (name or path); save (saves the project, or to path); new (blank unsaved design); open (any .fimgui path). "
         "new/open/new_project/open_project refuse to drop unsaved changes unless discard_changes is true.",
         Schema({ { "action", { { "type", "string" }, { "enum", { "list_projects", "new_project", "open_project", "save", "new", "open" } } } },
                  { "name", { { "type", "string" } } }, { "path", { { "type", "string" } } }, { "discard_changes", { { "type", "boolean" } } },
-                 { "type", { { "type", "string" }, { "enum", { "imgui", "minecraft" } }, { "description", "Project type for new_project" } } } }, { "action" }), false);
+                 { "type", { { "type", "string" }, { "enum", { "imgui", "minecraft", "web" } }, { "description", "Project type for new_project" } } } }, { "action" }), false);
     return tools;
 }
 
@@ -259,6 +261,18 @@ json App::McpTool(const std::string& name, const json& args)
         json out = { { "asset", asset }, { "kind", AssetKindName(a.kind) }, { "width", a.width }, { "height", a.height } };
         if (n) out["node_id"] = n->id;
         return TextResult(out.dump());
+    }
+    if (name == "export_project" && args.value("target", std::string(!projectDir.empty() ? ProjectTypeKey(projectType) : "imgui")) == "web")
+    {
+        WebOptions saved = webOpt;
+        webOpt.outDir = args.value("out_dir", std::string());
+        if (webOpt.outDir.empty()) { webOpt = saved; return TextResult("out_dir is required", true); }
+        if (args.contains("title")) webOpt.title = args["title"].get<std::string>();
+        if (args.contains("lang")) webOpt.lang = args["lang"].get<std::string>();
+        ExportResult r = RunWebExport();
+        McpLog("export_project (web): " + r.message);
+        json out = { { "ok", r.ok }, { "message", r.message }, { "files", r.files } };
+        return TextResult(out.dump(1), !r.ok);
     }
     if (name == "export_project" && args.value("target", std::string(!projectDir.empty() ? ProjectTypeKey(projectType) : "imgui")) == "minecraft")
     {

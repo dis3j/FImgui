@@ -2,7 +2,7 @@
 
 # Fimgui
 
-Редактор интерфейсов для **Dear ImGui** и **Minecraft (Java Edition)**, дизайн которого вдохновлён Figma. Меню рисуется на холсте вручную или по текстовому запросу к Claude: модель передаёт операции потоком, и они сразу появляются на холсте. Экспорт даёт готовую папку: `menu.h/.cpp`, иконки (SVG и PNG), изображения, шрифты и пример хоста на DirectX 11 — или Screen для Fabric / NeoForge 1.21.1 с текстурами и шрифтами.
+Редактор интерфейсов для **Dear ImGui**, **Minecraft (Java Edition)** и **веба**, дизайн которого вдохновлён Figma. Меню рисуется на холсте вручную или по текстовому запросу к Claude: модель передаёт операции потоком, и они сразу появляются на холсте. Экспорт даёт готовую папку: `menu.h/.cpp`, иконки (SVG и PNG), изображения, шрифты и пример хоста на DirectX 11, Screen для Fabric / NeoForge 1.21.1 с текстурами и шрифтами или статический сайт (HTML, CSS, JS) с живым предпросмотром в браузере.
 
 ![](docs/screenshot.png)
 
@@ -83,11 +83,11 @@ C:\FImgui\
 ```
 
 - **Projects** (Ctrl+Shift+O, открывается при запуске): сетка проектов с превью, поиск, «+ New project», недавние файлы.
-- При создании проекта выбирается тип: **Dear ImGui** (C++ меню) или **Minecraft** (GUI для Java Edition 1.21.1). Тип виден на карточке и в заголовке окна, от него зависит, куда по умолчанию экспортирует Export; новый Minecraft-проект сразу содержит фрейм-экран и открывается в редакторе Minecraft (см. «Экспорт в Minecraft»); у Minecraft-проекта настройки мода (loader, mod id, пакет) хранятся в самом проекте. Старые проекты открываются как Dear ImGui.
+- При создании проекта выбирается тип: **Dear ImGui** (C++ меню), **Minecraft** (GUI для Java Edition 1.21.1) или **Web** (сайт, см. «Экспорт в Web»). Тип виден на карточке и в заголовке окна, от него зависит, куда по умолчанию экспортирует Export; новый Minecraft-проект сразу содержит фрейм-экран и открывается в редакторе Minecraft (см. «Экспорт в Minecraft»); у Minecraft-проекта настройки мода (loader, mod id, пакет) хранятся в самом проекте. Старые проекты открываются как Dear ImGui.
 - **Ctrl+N** создаёт новый проект. **Ctrl+S** у несохранённого дизайна предлагает сохранить его как проект, у проекта — сохраняет папку целиком.
 - Папку проекта можно скопировать на другой компьютер: шрифты проекта регистрируются при открытии, ассеты читаются из файлов.
 - «Save as single file» сохраняет автономный `.fimgui` со встроенными ассетами, как раньше.
-- MCP-инструмент `document_file` умеет `list_projects`, `new_project` (с `type`: `imgui` или `minecraft`) и `open_project`.
+- MCP-инструмент `document_file` умеет `list_projects`, `new_project` (с `type`: `imgui`, `minecraft` или `web`) и `open_project`.
 
 ### Если Fimgui упал
 
@@ -265,6 +265,32 @@ if (state.Save_config_pressed) SaveConfig();
 - Меню вписывается в окно и центрируется.
 - Ограничения: blur и стекло запекаются без мира за ними, GIF и видео показывают первый кадр, шрифты подключаются только в формате TTF.
 
+## Экспорт в Web (HTML)
+
+В Web-проекте каждый фрейм верхнего уровня — это страница сайта: первый становится `index.html`, остальные называются по имени фрейма (`pricing.html`). На холсте страницы стоят в окнах браузера с адресом и шириной. Новый проект начинается со страницы Home 1440 x 900.
+
+- **Design** без выделения: раздел **Site** (заголовок сайта, язык, вписывание страниц в узкие окна, шрифты дизайна), **Pages** (список страниц; Desktop / Laptop / Tablet / Mobile добавляют страницу нужной ширины) и **Preview**. У выбранной страницы — её файл и кнопки ширины.
+- **Open in browser** запускает локальный сервер `http://127.0.0.1:7420/` и открывает страницу в браузере. Сайт собирается в памяти: после каждой правки браузер перезагружает страницу (с сохранением прокрутки) и переключается на страницу, с которой вы работаете.
+- **Prototype → Link**: слой ведёт на другую страницу или на адрес (URL). В экспорте это `<a href>`, в режиме Play клик открывает страницу прямо в редакторе.
+- **Code → HTML** показывает разметку и CSS выбранного слоя.
+
+Экспорт (**Export → Web (HTML)**):
+
+```
+<out>/
+  index.html, pricing.html, ...   страницы: <!doctype html>, <main>, <h1>, <button>, <a>, <input>, role / aria-атрибуты
+  css/site.css                    раскладка, @font-face, анимации (@keyframes), hover / active состояния
+  js/fimgui.js                    состояние, кнопки, вкладки, переключатели, слайдеры, поля ввода, выпадающие списки, Show when
+  assets/                         картинки, видео, векторы, шрифты
+  README.md, LICENSE-FIMGUI.txt
+```
+
+- Позиции и размеры как в дизайне; auto layout становится flexbox, поэтому слои, скрытые через Show when, не оставляют пустого места. Обводки — `outline` по скруглению, тени — `box-shadow` / `text-shadow`, blur и стекло — `backdrop-filter`, поворот — свойство `rotate`, режимы наложения — `mix-blend-mode`, градиенты — `linear / radial / conic-gradient`.
+- Анимации (пресеты и ключевые кадры) сэмплируются тем же движком, что в редакторе, и выгружаются как `@keyframes`; hover / press анимации — через переходы. Учитывается `prefers-reduced-motion`.
+- Состояние общее для всех страниц сайта (хранится в `sessionStorage` вкладки). Из своего кода: `fimgui.get('tab')`, `fimgui.set('tab', 1)`, события `fim:change` и `fim:press`.
+- Страница шире окна уменьшается целиком (`zoom`), если включено вписывание.
+- Ограничения: страницы фиксированной ширины (адаптивная вёрстка не генерируется), градиентная обводка выгружается первым цветом, «жидкое» преломление стекла заменено размытием с бликом.
+
 ## Горячие клавиши
 
 | | |
@@ -292,9 +318,9 @@ if (state.Save_config_pressed) SaveConfig();
 ```
 Fimgui.exe [file.fimgui] [--ops ops.jsonl] [--select id] [--var name=value] [--preview] [--click id|@x,y frame [dy]]
            [--tab 0..4] [--import media x y] [--export dir] [--no-embed-fonts] [--screenshot out.png --frames N]
-           [--workspace dir] [--project Name [imgui|minecraft]] [--save] [--home] [--ui-scale 1.25] [--check-updates]
+           [--workspace dir] [--project Name [imgui|minecraft|web]] [--save] [--home] [--ui-scale 1.25] [--check-updates]
            [--crash-test frame]
-           [--export-java dir [fabric|neoforge]] [--timeline seconds]
+           [--export-java dir [fabric|neoforge]] [--export-web dir] [--web-preview] [--timeline seconds]
            [--ops-stream ops.jsonl [framesPerOp]] [--record dir [every] [tail]]
            [--ai "запрос" --ai-base URL --ai-key KEY] [--mcp-port N]
 ```
@@ -333,10 +359,11 @@ python examples\scripts\make_timelapse.py frames docs\timelapse_login.gif 800
 ## Структура
 
 ```
-src/        редактор: app, project, ui_home, ui_chrome (заголовок, меню, обновления), updater, ui_timeline, ui_picker, codegen_java, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
+src/        редактор: app, project, ui_home, ui_chrome (заголовок, меню, обновления), updater, ui_timeline, ui_picker, codegen_java, ui_minecraft,
+            codegen_web, web_preview, ui_web, crash, ui_canvas, ui_panels, ui_motion, ui_ai, document, renderer, codegen, exporters, ai, http, fonts, gfx, mcp_server, mcp_tools
 tools/      fimgui-mcp: stdio-мост для MCP-клиентов; make_logo.py — генератор логотипа (SVG, PNG, ICO); patch_notes.py — патчноут версии из CHANGELOG
 .github/    workflows: build (проверка сборки) и release (релиз по тегу vX.Y.Z)
 runtime/    fimgui_runtime (рендер, анимации, GIF) и fimgui_fx (blur, glass, blend, видео) — общие для редактора и экспорта;
-            java/ — Java-runtime для экспорта в Minecraft
+            java/ — Java-runtime для экспорта в Minecraft; web/fimgui.js — runtime сайтов
 third_party/, resources/fonts, examples/
 ```

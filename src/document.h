@@ -191,6 +191,7 @@ struct Node
     float vmin = 0.0f, vmax = 100.0f;
     bool  hasHover = false; ImVec4 hoverColor = ImVec4(1, 1, 1, 1);
     bool  hasActive = false; ImVec4 activeColor = ImVec4(0.05f, 0.6f, 1, 1);
+    std::string link;                       // web: "page:<frame id>" or a URL, opened on click
     std::string showVar;                    // visible only when showVar == showValue (or != when showNot)
     float showValue = 1.0f;
     bool  showNot = false;

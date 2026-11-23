@@ -22,7 +22,7 @@ static std::string Fmt(float v)
 
 static std::string Px(float v) { return v == 0 ? "0" : Fmt(v) + "px"; }
 
-static std::string CssColor(ImVec4 c)
+std::string CssColor(ImVec4 c)
 {
     if (c.w >= 0.999f) return ColorToHex(c);
     char b[64];
@@ -30,7 +30,7 @@ static std::string CssColor(ImVec4 c)
     return b;
 }
 
-static std::string CssPaint(const Paint& p)
+std::string CssPaint(const Paint& p)
 {
     std::string stops;
     for (auto& s : p.Stops()) stops += ", " + CssColor(s.color) + " " + Fmt(std::round(s.pos * 1000) / 10) + "%";
@@ -57,6 +57,9 @@ static int StyleToWeight(const std::string& s)
     if (l.find("bold") != std::string::npos) return 700;
     return 400;
 }
+
+std::string CssNum(float v) { return Fmt(v); }
+int CssFontWeight(const std::string& style) { return StyleToWeight(style); }
 
 static void CssFor(Document& doc, Node* n, std::ostringstream& o, bool withChildren, int depth)
 {

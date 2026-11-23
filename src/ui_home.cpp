@@ -175,11 +175,11 @@ void App::DrawHome()
         else
             DrawLogo(gdl, ImVec2((ta.x + tb.x) * 0.5f - U(20), (ta.y + tb.y) * 0.5f - U(20)), U(40), 0.35f);
         {
-            const char* badge = p.type == Project_Minecraft ? "Minecraft" : "ImGui";
+            const char* badge = p.type == Project_Minecraft ? "Minecraft" : p.type == Project_Web ? "Web" : "ImGui";
             float bfs = ImGui::GetFontSize() * 0.85f;
             ImVec2 bs = fonts::UI(fonts::UI_Medium)->CalcTextSizeA(bfs, FLT_MAX, 0, badge);
             ImVec2 ba(ta.x + U(8), ta.y + U(8)), bb(ba.x + bs.x + U(12), ba.y + bs.y + U(6));
-            gdl->AddRectFilled(ba, bb, p.type == Project_Minecraft ? IM_COL32(60, 140, 60, 230) : IM_COL32(13, 110, 200, 230), U(5));
+            gdl->AddRectFilled(ba, bb, p.type == Project_Minecraft ? IM_COL32(60, 140, 60, 230) : p.type == Project_Web ? IM_COL32(214, 104, 36, 230) : IM_COL32(13, 110, 200, 230), U(5));
             gdl->AddText(fonts::UI(fonts::UI_Medium), bfs, ImVec2(ba.x + U(6), ba.y + U(3)), IM_COL32(255, 255, 255, 255), badge);
         }
         gdl->AddRectFilled(ImVec2(cp.x, tb.y), ImVec2(cp.x + cardW, cp.y + cardH), Bg, U(10), ImDrawFlags_RoundCornersBottom);
@@ -202,7 +202,7 @@ void App::DrawHome()
         ImGui::Dummy(ImVec2(0, U(60)));
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
         ImGui::Text("No projects yet in %s", WorkspaceDir().c_str());
-        ImGui::TextUnformatted("Each project is a folder with its design, fonts, images, icons, videos and export (Dear ImGui C++ or a Minecraft mod GUI).");
+        ImGui::TextUnformatted("Each project is a folder with its design, fonts, images, icons, videos and export (Dear ImGui C++, a Minecraft mod GUI or a website).");
         ImGui::PopStyleColor();
         ImGui::Dummy(ImVec2(0, U(8)));
         if (ui::PrimaryButton("+ Create the first project", ImVec2(U(220), 0))) { newProjectFromCurrent = false; openNewProject = true; }
@@ -212,17 +212,18 @@ void App::DrawHome()
     if (!openPath.empty()) OpenDocument(openPath);
 }
 
-// Two cards for the project type: what the design is exported to.
+// Cards for the project type: what the design is exported to.
 static bool ProjectTypeCards(int* type, float width)
 {
     struct Card { const char* title; const char* line1; const char* line2; };
-    static const Card cards[2] = {
-        { "Dear ImGui", "C++ menu for Dear ImGui", "DirectX 11, Win32 example host" },
-        { "Minecraft", "Java Edition 1.21.1 GUI", "Screen for Fabric or NeoForge" },
+    static const Card cards[3] = {
+        { "Dear ImGui", "C++ menu for Dear ImGui", "DirectX 11 example host" },
+        { "Minecraft", "Java Edition 1.21.1 GUI", "Fabric / NeoForge Screen" },
+        { "Web", "HTML5 + CSS website", "Pages, live browser preview" },
     };
     bool changed = false;
-    float gap = U(10), w = (width - gap) * 0.5f, h = U(64);
-    for (int i = 0; i < 2; i++)
+    float gap = U(10), w = (width - gap * 2) / 3, h = U(64);
+    for (int i = 0; i < 3; i++)
     {
         if (i) ImGui::SameLine(0, gap);
         ImGui::PushID(i);
@@ -260,11 +261,11 @@ void App::DrawNewProjectDialog()
         ImGui::OpenPopup("New project");
     }
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(U(460), 0));
+    ImGui::SetNextWindowSize(ImVec2(U(580), 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(U(18), U(16)));
     if (ImGui::BeginPopupModal("New project", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        float W = U(424);
+        float W = U(544);
         ui::Label(newProjectFromCurrent ? "Save the current design as a project" : "Create an empty project");
         ui::Label("Type", false);
         ProjectTypeCards(&type, W);

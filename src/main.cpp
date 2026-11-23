@@ -230,6 +230,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     bool noEmbedFonts = false;
     bool forceHome = false;
     bool exportJava = false;
+    std::string exportWeb;
+    bool webPreview = false;
     struct Click { std::string id; int frame; float dy; };
     std::vector<Click> clicks;   // synthetic clicks for automated checks
     // Timelapse: --ops-stream applies operations one by one (like a streamed AI answer), --record saves frames.
@@ -326,6 +328,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
                 if (i + 1 < args.size() && isNumber(args[i + 1])) recordTail = std::max(0, std::atoi(next().c_str()));
                 CreateDirectoryW(platform::Widen(recordDir).c_str(), nullptr);
             }
+            else if (a == "--export-web") { exportWeb = next(); g_appInstance.persistSettings = false; }
+            else if (a == "--web-preview") webPreview = true;
             else if (a == "--export-java")
             {
                 g_appInstance.javaOpt.outDir = next();
@@ -338,10 +342,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             else if (a == "--save") g_appInstance.deferred.push_back([] { g_appInstance.SaveDocument(false); });
             else if (a == "--project")
             {
-                // Open <workspace>/<name>, creating the project when it doesn't exist yet: --project name [imgui|minecraft]
+                // Open <workspace>/<name>, creating the project when it doesn't exist yet: --project name [imgui|minecraft|web]
                 std::string name = next(), err;
                 int type = Project_ImGui;
-                if (i + 1 < args.size() && (args[i + 1] == "imgui" || args[i + 1] == "minecraft")) type = ProjectTypeFromKey(next());
+                if (i + 1 < args.size() && (args[i + 1] == "imgui" || args[i + 1] == "minecraft" || args[i + 1] == "web")) type = ProjectTypeFromKey(next());
                 std::string path = g_appInstance.WorkspaceDir() + "/" + name + "/" + ProjectFileName(name);
                 if (platform::ReadText(path, err)) g_appInstance.OpenDocument(path);
                 else if (!g_appInstance.CreateProject(name, false, &err, type)) OutputDebugStringA(err.c_str());
@@ -471,6 +475,16 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             platform::WriteText(exportDir + "/export_log.txt", r.message + "\n");
             if (screenshot.empty()) done = true;
         }
+        if (frame == 5 && !exportWeb.empty())
+        {
+            g_appInstance.webOpt.outDir = exportWeb;
+            ExportResult r = g_appInstance.RunWebExport();
+            std::string log = r.message + "\n";
+            for (auto& f : r.files) log += f + "\n";
+            platform::WriteText(exportWeb + "/export_log.txt", log);
+            if (screenshot.empty() && !webPreview) done = true;
+        }
+        if (frame == 5 && webPreview) g_appInstance.OpenWebPreview(g_appInstance.WebCurrentPage(), false);   // automated checks: the server only
         if (frame == 5 && exportJava)
         {
             ExportResult r = g_appInstance.RunJavaExport();

@@ -70,6 +70,14 @@ static bool LabelRect(App* app, Node* n, ImVec2* a, ImVec2* b)
     float fs = 11.0f * dpi;
     ImVec2 ts = fonts::UI(fonts::UI_Regular)->CalcTextSizeA(fs, FLT_MAX, 0, n->name.c_str());
     float maxW = n->w * app->zoom;
+    if (app->IsWeb() && maxW >= U(90))
+    {
+        // web pages: the name is the tab title inside the browser bar (App::DrawWebChrome)
+        float barH = U(30);
+        *a = ImVec2(p.x + U(52), p.y - barH + (barH - fs) * 0.5f - U(1));
+        *b = ImVec2(a->x + std::min(ts.x, std::max(maxW - U(60), U(20))), a->y + fs + U(2));
+        return true;
+    }
     *a = ImVec2(p.x, p.y - fs - U(6));
     *b = ImVec2(p.x + std::min(ts.x, std::max(maxW, U(20))), p.y - U(2));
     return true;
@@ -1141,6 +1149,16 @@ void App::DrawCanvas()
     {
         // Preview still allows panning with middle mouse / space.
         if (hovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Middle) || (m_spaceHeld && ImGui::IsMouseClicked(0)))) m_drag = Drag::Pan;
+        // Web links: a click opens the linked page (or the URL in the browser).
+        bool inCanvas = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && PointIn(io.MousePos, canvasMin, canvasMax);
+        if (preview && IsWeb() && inCanvas && m_drag == Drag::None)
+        {
+            Node* hit = doc.Find(HitTest(ScreenToWorld(io.MousePos), true));
+            Node* link = hit;
+            while (link && link->link.empty()) link = link->parent;
+            if (link) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (link && ImGui::IsMouseReleased(0) && ImGui::GetMouseDragDelta(0).x == 0 && ImGui::GetMouseDragDelta(0).y == 0) FollowLink(link);
+        }
         if (m_drag == Drag::Pan) { pan = pan + io.MouseDelta; if (!ImGui::IsMouseDown(0) && !ImGui::IsMouseDown(2)) m_drag = Drag::None; }
     }
 
@@ -1154,6 +1172,7 @@ void App::DrawCanvas()
 
     dl->PushClipRect(canvasMin, canvasMax, true);
     DrawMinecraftScreen(dl);
+    DrawWebChrome(dl);
     RenderCtx ctx;
     ctx.dl = dl;
     ctx.origin = WorldToScreen(ImVec2(0, 0));

@@ -618,6 +618,7 @@ json NodeToJson(const Node* n)
     }
     if (n->hasHover) j["hoverColor"] = ColorJ(n->hoverColor);
     if (n->hasActive) j["activeColor"] = ColorJ(n->activeColor);
+    if (!n->link.empty()) j["link"] = n->link;
     if (!n->showVar.empty()) j["showIf"] = { { "var", n->showVar }, { "value", n->showValue }, { "not", n->showNot } };
     if (n->sliderPart) j["sliderPart"] = n->sliderPart == 1 ? "fill" : "knob";
     if (n->role == Role::Combo || n->role == Role::MultiCombo)
@@ -843,6 +844,7 @@ void ApplyProps(Node* n, const json& p, Document* doc)
         else if (k == "max") n->vmax = Num(v, 100);
         else if (k == "hoverColor") { n->hasHover = !v.is_null(); if (n->hasHover) n->hoverColor = ParseColor(v, n->hoverColor); }
         else if (k == "activeColor") { n->hasActive = !v.is_null(); if (n->hasActive) n->activeColor = ParseColor(v, n->activeColor); }
+        else if (k == "link") n->link = v.is_string() ? v.get<std::string>() : std::string();
         else if (k == "showIf")
         {
             if (v.is_object())

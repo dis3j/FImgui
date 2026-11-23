@@ -125,6 +125,7 @@ void App::Shutdown()
 {
     aiClient.Cancel();
     mcp.Stop();
+    StopWebPreview();
     if (persistSettings) SaveSettings();
 }
 
@@ -275,6 +276,7 @@ void App::Frame()
     }
 
     Checkpoint();
+    WebPreviewTick();
 
     std::string shownName = !projectDir.empty() ? fs::u8path(projectDir).filename().u8string() : (doc.name.empty() ? "Untitled" : doc.name);
     std::string title = shownName + (modified ? " *" : "") + " - Fimgui";
@@ -442,9 +444,10 @@ void App::LoadFromJsonText(const std::string& text, const std::string& path)
             fonts::AddFontDir((fs::u8path(baseDir) / "fonts").u8string());
             const json& pj = j.contains("project") && j["project"].is_object() ? j["project"] : json();
             projectType = ProjectTypeFromKey(pj.value("type", std::string("imgui")));
-            exportTarget = projectType == Project_Minecraft ? 1 : 0;
+            exportTarget = projectType;
             ApplyProjectExportSettings(pj.value("export", json()));
             if (projectType == Project_Minecraft) ApplyProjectJavaSettings(pj.value("minecraft", json()));
+            if (projectType == Project_Web) ApplyProjectWebSettings(pj.value("web", json()));
         }
     }
     catch (const std::exception& e)

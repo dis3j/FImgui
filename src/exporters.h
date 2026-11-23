@@ -4,6 +4,11 @@
 #include <vector>
 
 std::string NodeToCSS(Document& doc, Node* n, bool withChildren);
+// CSS values shared with the web export.
+std::string CssNum(float v);                  // "12", "0.5"
+std::string CssColor(ImVec4 c);               // #rrggbb or rgba()
+std::string CssPaint(const Paint& p);         // color or *-gradient()
+int CssFontWeight(const std::string& style);  // "SemiBold Italic" -> 600
 std::string NodeToSVG(Document& doc, Node* n);
 
 bool LooksLikeCSS(const std::string& s);

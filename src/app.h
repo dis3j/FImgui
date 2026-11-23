@@ -1,6 +1,8 @@
 #pragma once
 #include "updater.h"
 #include "codegen_java.h"
+#include "codegen_web.h"
+#include <memory>
 #include <set>
 #include <map>
 #include "document.h"
@@ -43,12 +45,14 @@ struct ProjectEntry
 };
 
 // What a project is made for: chosen when it is created, decides the default export target.
-enum ProjectType { Project_ImGui = 0, Project_Minecraft = 1 };
-const char* ProjectTypeKey(int type);           // "imgui" / "minecraft"
+enum ProjectType { Project_ImGui = 0, Project_Minecraft = 1, Project_Web = 2 };
+const char* ProjectTypeKey(int type);           // "imgui" / "minecraft" / "web"
 int ProjectTypeFromKey(const std::string& key);
 
 std::string ProjectFileName(const std::string& name);           // "Project_A" -> "projecta.fimgui"
 bool ValidProjectName(const std::string& name, std::string* err);
+
+class WebPreview;
 
 class App
 {
@@ -68,6 +72,7 @@ public:
     std::string projectDir;      // set when the design lives in a project folder
     int projectType = Project_ImGui;
     bool IsMinecraft() const { return !projectDir.empty() && projectType == Project_Minecraft; }
+    bool IsWeb() const { return !projectDir.empty() && projectType == Project_Web; }
     bool modified = false;
 
     // ---- Minecraft projects (ui_minecraft.cpp): the menu frame inside a game window
@@ -82,6 +87,23 @@ public:
     void McFitScreen();
     void DrawMinecraftScreen(ImDrawList* dl);
     void DrawMinecraftPanel(float W);
+
+    // ---- web projects (ui_web.cpp): every top-level frame is a page, previewed live in the browser
+    WebOptions webOpt;
+    std::shared_ptr<WebPreview> webPreview;
+    size_t webBuiltHash = 0;
+    double webBuiltTime = 0;
+    void ApplyProjectWebSettings(const json& j);
+    ExportResult RunWebExport();
+    void OpenWebPreview(Node* page, bool openBrowser = true);   // starts the preview server and opens the page in the browser
+    void StopWebPreview();
+    void WebPreviewTick();             // rebuilds the served site after edits (every frame)
+    Node* WebCurrentPage();            // the page of the selection, else the page in the middle of the view
+    void FollowLink(Node* n);          // preview: a click on a linked layer
+    void DrawWebChrome(ImDrawList* dl);
+    void DrawWebPanel(float W);
+    void DrawWebPageSection(Node* page, float W);
+    bool DrawLinkSection(Node* n, float W);
 
     // ---- projects (workspace/<Name>/<name>.fimgui + fonts/ images/ icons/ videos/ export/)
     std::string workspace = "C:/FImgui";
@@ -198,7 +220,7 @@ public:
     // One layer alone (children hidden), for the Minecraft export. See BakeLayerFn.
     bool BakeLayerPNG(Node* n, int variant, float scale, std::vector<unsigned char>& png, int* w, int* h, ImVec2* offset);
     JavaOptions javaOpt;
-    int exportTarget = 0;              // 0 Dear ImGui (C++), 1 Minecraft Java
+    int exportTarget = 0;              // 0 Dear ImGui (C++), 1 Minecraft Java, 2 Web
     ExportResult RunJavaExport();
     bool RenderRegionPNG(ImVec2 worldMin, ImVec2 worldMax, float scale, std::vector<unsigned char>& png);
 

@@ -36,7 +36,7 @@ void App::MenuFile()
     ImGui::Separator();
     if (ImGui::MenuItem("Place image / SVG / video...", "Ctrl+Shift+K"))
         for (auto& f : platform::OpenFilesDialog("Place image", "Media|*.png;*.jpg;*.jpeg;*.svg;*.bmp;*.gif;*.mp4;*.mov;*.wmv;*.m4v")) ImportImageFile(f, nullptr, ImVec2(0, 0));
-    if (ImGui::MenuItem(!projectDir.empty() && projectType == Project_Minecraft ? "Export Minecraft GUI..." : "Export ImGui project...", "Ctrl+E")) showExport = true;
+    if (ImGui::MenuItem(IsMinecraft() ? "Export Minecraft GUI..." : IsWeb() ? "Export website..." : "Export ImGui project...", "Ctrl+E")) showExport = true;
     ImGui::Separator();
     if (ImGui::MenuItem("Exit", "Alt+F4")) platform::CloseMainWindow();
 }
@@ -226,7 +226,7 @@ void App::DrawTitleBar()
             if (modified) dl->AddCircleFilled(ImVec2(cx + ts.x + U(9), o.y + h * 0.5f), U(3), TextDim);
             if (!projectDir.empty())
             {
-                const char* hint = projectType == Project_Minecraft ? "Minecraft project" : "ImGui project";
+                const char* hint = projectType == Project_Minecraft ? "Minecraft project" : projectType == Project_Web ? "Web project" : "ImGui project";
                 ImVec2 hs = mf->CalcTextSizeA(U(11), FLT_MAX, 0, hint);
                 if (cx - hs.x - U(14) > menusEnd) dl->AddText(mf, U(11), ImVec2(cx - hs.x - U(12), o.y + (h - hs.y) * 0.5f), TextFaint, hint);
             }
