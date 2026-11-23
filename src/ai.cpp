@@ -86,6 +86,11 @@ AiClient::~AiClient()
 
 std::string AiClient::ResolveKey(const AiSettings& s)
 {
+    if (s.IsOpenAI())
+    {
+        if (!s.openaiApiKey.empty()) return s.openaiApiKey;
+        return platform::GetEnv("OPENAI_API_KEY");
+    }
     if (!s.apiKey.empty()) return s.apiKey;
     return platform::GetEnv("ANTHROPIC_API_KEY");
 }
@@ -114,6 +119,19 @@ static bool SupportsServerFallback(const std::string& model)
     return model == "claude-opus-5-5" || model == "claude-sonnet-5-5" || model == "claude-fable-5-1";
 }
 
+static std::string OpenAiUrl(const std::string& base)
+{
+    std::string url = base;
+    while (!url.empty() && url.back() == '/') url.pop_back();
+    if (url.empty()) url = "https://api.openai.com";
+    auto ends = [&](const std::string& suffix) {
+        return url.size() >= suffix.size() && url.compare(url.size() - suffix.size(), suffix.size(), suffix) == 0;
+    };
+    if (ends("/chat/completions")) return url;
+    if (ends("/v1")) return url + "/chat/completions";
+    return url + "/v1/chat/completions";
+}
+
 void AiClient::Start(const AiSettings& s, const std::vector<AiTurn>& history, const std::string& docContext, const std::vector<std::vector<unsigned char>>& snapshot)
 {
     if (m_busy) return;
@@ -121,59 +139,119 @@ void AiClient::Start(const AiSettings& s, const std::vector<AiTurn>& history, co
     m_cancel = false;
     m_busy = true;
 
+    bool openai = s.IsOpenAI();
     json body;
-    body["model"] = s.model;
-    body["max_tokens"] = 64000;
-    body["stream"] = true;
-    body["thinking"] = { { "type", "adaptive" }, { "display", "summarized" } };
-    body["output_config"] = { { "effort", s.effort } };
-    body["system"] = json::array({ { { "type", "text" }, { "text", kSystemPrompt }, { "cache_control", { { "type", "ephemeral" } } } } });
-    bool fallback = SupportsServerFallback(s.model);
-    if (fallback) body["fallbacks"] = "default";
+    http::Headers headers;
+    std::string url;
 
-    json messages = json::array();
-    for (size_t i = 0; i < history.size(); i++)
+    if (openai)
     {
-        const AiTurn& t = history[i];
-        bool last = i + 1 == history.size();
-        json content = json::array();
-        if (t.user)
+        body["model"] = s.ActiveModel();
+        body["stream"] = true;
+        if (s.openaiSendReasoning && !s.effort.empty())
         {
+            std::string effort = s.effort;
+            if (effort == "xhigh" || effort == "max") effort = "high";
+            if (effort != "low" && effort != "medium" && effort != "high") effort = "medium";
+            body["reasoning_effort"] = effort;
+        }
+
+        json messages = json::array();
+        messages.push_back({ { "role", "system" }, { "content", kSystemPrompt } });
+        for (size_t i = 0; i < history.size(); i++)
+        {
+            const AiTurn& t = history[i];
+            bool last = i + 1 == history.size();
+            if (!t.user)
+            {
+                messages.push_back({ { "role", "assistant" }, { "content", t.text.empty() ? std::string("(done)") : t.text } });
+                continue;
+            }
+            bool hasImages = !t.images.empty() || (last && !snapshot.empty());
+            if (!hasImages)
+            {
+                std::string text = t.text.empty() ? std::string("(no text)") : t.text;
+                if (last) text = "Current document (JSON, coordinates relative to parent):\n" + docContext + "\n\n" + text;
+                messages.push_back({ { "role", "user" }, { "content", text } });
+                continue;
+            }
+            json content = json::array();
             for (auto& img : t.images)
-                content.push_back({ { "type", "image" }, { "source", { { "type", "base64" }, { "media_type", "image/png" }, { "data", Base64Encode(img.data(), img.size()) } } } });
+                content.push_back({ { "type", "image_url" }, { "image_url", { { "url", "data:image/png;base64," + Base64Encode(img.data(), img.size()) } } } });
             if (last)
             {
                 for (auto& img : snapshot)
-                    content.push_back({ { "type", "image" }, { "source", { { "type", "base64" }, { "media_type", "image/png" }, { "data", Base64Encode(img.data(), img.size()) } } } });
+                    content.push_back({ { "type", "image_url" }, { "image_url", { { "url", "data:image/png;base64," + Base64Encode(img.data(), img.size()) } } } });
                 std::string ctx = "Current document (JSON, coordinates relative to parent):\n" + docContext;
                 if (!snapshot.empty()) ctx += "\n\nThe last attached image is a render of the current canvas.";
                 content.push_back({ { "type", "text" }, { "text", ctx } });
             }
             content.push_back({ { "type", "text" }, { "text", t.text.empty() ? std::string("(no text)") : t.text } });
+            messages.push_back({ { "role", "user" }, { "content", content } });
         }
-        else
-            content.push_back({ { "type", "text" }, { "text", t.text.empty() ? std::string("(done)") : t.text } });
-        messages.push_back({ { "role", t.user ? "user" : "assistant" }, { "content", content } });
-    }
-    body["messages"] = messages;
+        body["messages"] = messages;
 
-    std::string key = ResolveKey(s);
-    std::string url = s.baseUrl;
-    while (!url.empty() && url.back() == '/') url.pop_back();
-    url += "/v1/messages";
-    http::Headers headers = {
-        { "content-type", "application/json" },
-        { "x-api-key", key },
-        { "anthropic-version", "2023-06-01" },
-    };
-    if (fallback) headers.push_back({ "anthropic-beta", "server-side-fallback-2026-07-01" });
+        url = OpenAiUrl(s.openaiBaseUrl);
+        headers = { { "content-type", "application/json" } };
+        std::string key = ResolveKey(s);
+        if (!key.empty()) headers.push_back({ "authorization", "Bearer " + key });
+    }
+    else
+    {
+        body["model"] = s.ActiveModel();
+        body["max_tokens"] = 64000;
+        body["stream"] = true;
+        body["thinking"] = { { "type", "adaptive" }, { "display", "summarized" } };
+        body["output_config"] = { { "effort", s.effort } };
+        body["system"] = json::array({ { { "type", "text" }, { "text", kSystemPrompt }, { "cache_control", { { "type", "ephemeral" } } } } });
+        bool fallback = SupportsServerFallback(s.model);
+        if (fallback) body["fallbacks"] = "default";
+
+        json messages = json::array();
+        for (size_t i = 0; i < history.size(); i++)
+        {
+            const AiTurn& t = history[i];
+            bool last = i + 1 == history.size();
+            json content = json::array();
+            if (t.user)
+            {
+                for (auto& img : t.images)
+                    content.push_back({ { "type", "image" }, { "source", { { "type", "base64" }, { "media_type", "image/png" }, { "data", Base64Encode(img.data(), img.size()) } } } });
+                if (last)
+                {
+                    for (auto& img : snapshot)
+                        content.push_back({ { "type", "image" }, { "source", { { "type", "base64" }, { "media_type", "image/png" }, { "data", Base64Encode(img.data(), img.size()) } } } });
+                    std::string ctx = "Current document (JSON, coordinates relative to parent):\n" + docContext;
+                    if (!snapshot.empty()) ctx += "\n\nThe last attached image is a render of the current canvas.";
+                    content.push_back({ { "type", "text" }, { "text", ctx } });
+                }
+                content.push_back({ { "type", "text" }, { "text", t.text.empty() ? std::string("(no text)") : t.text } });
+            }
+            else
+                content.push_back({ { "type", "text" }, { "text", t.text.empty() ? std::string("(done)") : t.text } });
+            messages.push_back({ { "role", t.user ? "user" : "assistant" }, { "content", content } });
+        }
+        body["messages"] = messages;
+
+        std::string key = ResolveKey(s);
+        url = s.baseUrl;
+        while (!url.empty() && url.back() == '/') url.pop_back();
+        url += "/v1/messages";
+        headers = {
+            { "content-type", "application/json" },
+            { "x-api-key", key },
+            { "anthropic-version", "2023-06-01" },
+        };
+        if (fallback) headers.push_back({ "anthropic-beta", "server-side-fallback-2026-07-01" });
+    }
     std::string payload = body.dump();
 
-    m_thread = std::thread([this, url, headers, payload]() {
+    m_thread = std::thread([this, url, headers, payload, openai]() {
         std::string buffer;
         std::string stopReason;
         bool gotError = false;
-        auto handleEvent = [&](const std::string& data) {
+        bool done = false;
+        auto handleAnthropic = [&](const std::string& data) {
             json j = json::parse(data, nullptr, false);
             if (j.is_discarded()) return;
             std::string type = j.value("type", "");
@@ -200,7 +278,35 @@ void AiClient::Start(const AiSettings& s, const std::vector<AiTurn>& history, co
                 Push(AiEvent::Error, j.contains("error") ? j["error"].value("message", data) : data);
             }
         };
+        auto handleOpenAi = [&](const std::string& data) {
+            if (data == "[DONE]") { done = true; return; }
+            json j = json::parse(data, nullptr, false);
+            if (j.is_discarded()) return;
+            if (j.contains("error"))
+            {
+                gotError = true;
+                const json& e = j["error"];
+                Push(AiEvent::Error, e.is_object() ? e.value("message", data) : (e.is_string() ? e.get<std::string>() : data));
+                return;
+            }
+            if (!j.contains("choices") || !j["choices"].is_array() || j["choices"].empty()) return;
+            const json& ch = j["choices"][0];
+            if (ch.contains("delta") && ch["delta"].is_object())
+            {
+                const json& d = ch["delta"];
+                if (d.contains("content") && d["content"].is_string()) Push(AiEvent::Text, d["content"].get<std::string>());
+                if (d.contains("reasoning_content") && d["reasoning_content"].is_string()) Push(AiEvent::Thinking, d["reasoning_content"].get<std::string>());
+                else if (d.contains("reasoning") && d["reasoning"].is_string()) Push(AiEvent::Thinking, d["reasoning"].get<std::string>());
+            }
+            if (ch.contains("finish_reason") && ch["finish_reason"].is_string())
+                stopReason = ch["finish_reason"].get<std::string>();
+        };
+        auto handleEvent = [&](const std::string& data) {
+            if (openai) handleOpenAi(data);
+            else handleAnthropic(data);
+        };
         http::Result r = http::PostStream(url, headers, payload, [&](const char* p, size_t n) {
+            if (done) return false;
             buffer.append(p, n);
             for (;;)
             {
@@ -223,7 +329,9 @@ void AiClient::Start(const AiSettings& s, const std::vector<AiTurn>& history, co
                     pos = nl + 1;
                 }
                 if (!data.empty()) handleEvent(data);
+                if (done) break;
             }
+            if (done) return false;
             return !m_cancel.load();
         }, &m_cancel);
 
@@ -235,8 +343,17 @@ void AiClient::Start(const AiSettings& s, const std::vector<AiTurn>& history, co
             Push(AiEvent::Error, "HTTP " + std::to_string(r.status) + ": " + msg);
         }
         else if (m_cancel) Push(AiEvent::Status, "Stopped");
-        else if (stopReason == "refusal") Push(AiEvent::Error, "The model declined this request.");
-        else if (stopReason == "max_tokens") Push(AiEvent::Status, "Reached the output limit");
+        else if (openai)
+        {
+            if (stopReason == "length") Push(AiEvent::Status, "Reached the output limit");
+            else if (stopReason == "content_filter") Push(AiEvent::Error, "The model blocked this response.");
+            else if (stopReason == "tool_calls" || stopReason == "function_call") Push(AiEvent::Status, "The model returned tool calls that Fimgui cannot apply");
+        }
+        else
+        {
+            if (stopReason == "refusal") Push(AiEvent::Error, "The model declined this request.");
+            else if (stopReason == "max_tokens") Push(AiEvent::Status, "Reached the output limit");
+        }
         (void)gotError;
         Push(AiEvent::Done, "");
         m_busy = false;

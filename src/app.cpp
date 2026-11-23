@@ -542,10 +542,15 @@ void App::SaveSettings()
 {
     if (!persistSettings) return;
     json j;
+    j["aiProvider"] = ai.provider;
     j["apiKey"] = Protect(ai.apiKey);
     j["model"] = ai.model;
     j["effort"] = ai.effort;
     j["baseUrl"] = ai.baseUrl;
+    j["openaiApiKey"] = Protect(ai.openaiApiKey);
+    j["openaiModel"] = ai.openaiModel;
+    j["openaiBaseUrl"] = ai.openaiBaseUrl;
+    j["openaiSendReasoning"] = ai.openaiSendReasoning;
     j["sendSnapshot"] = ai.sendSnapshot;
     j["mcpEnabled"] = mcpEnabled;
     j["pixelGrid"] = pixelGrid;
@@ -588,10 +593,17 @@ void App::LoadSettings()
     if (!platform::ReadText(platform::AppDataDir() + "/settings.json", text)) return;
     json j = json::parse(text, nullptr, false);
     if (j.is_discarded()) return;
+    ai.provider = j.value("aiProvider", ai.provider);
+    if (ai.provider == "openai-compatible") ai.provider = "openai";
+    else if (ai.provider != "openai") ai.provider = "anthropic";
     ai.apiKey = Unprotect(j.value("apiKey", std::string()));
     ai.model = j.value("model", ai.model);
     ai.effort = j.value("effort", ai.effort);
     ai.baseUrl = j.value("baseUrl", ai.baseUrl);
+    ai.openaiApiKey = Unprotect(j.value("openaiApiKey", std::string()));
+    ai.openaiModel = j.value("openaiModel", ai.openaiModel);
+    ai.openaiBaseUrl = j.value("openaiBaseUrl", ai.openaiBaseUrl);
+    ai.openaiSendReasoning = j.value("openaiSendReasoning", ai.openaiSendReasoning);
     ai.sendSnapshot = j.value("sendSnapshot", ai.sendSnapshot);
     mcpEnabled = j.value("mcpEnabled", mcpEnabled);
     pixelGrid = j.value("pixelGrid", pixelGrid);

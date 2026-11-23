@@ -7,11 +7,19 @@
 
 struct AiSettings
 {
-    std::string apiKey;                          // falls back to ANTHROPIC_API_KEY
+    std::string provider = "anthropic";          // "anthropic" | "openai"
+    std::string apiKey;                          // Anthropic; falls back to ANTHROPIC_API_KEY
     std::string model = "claude-opus-5-5";
     std::string effort = "medium";
     std::string baseUrl = "https://api.anthropic.com";
+    std::string openaiApiKey;                    // falls back to OPENAI_API_KEY
+    std::string openaiModel = "gpt-4o";
+    std::string openaiBaseUrl = "https://api.openai.com";
+    bool openaiSendReasoning = false;            // send effort as reasoning_effort
     bool sendSnapshot = true;                    // attach a PNG render of the canvas so the model sees the result
+
+    bool IsOpenAI() const { return provider == "openai"; }
+    const std::string& ActiveModel() const { return IsOpenAI() ? openaiModel : model; }
 };
 
 struct AiTurn

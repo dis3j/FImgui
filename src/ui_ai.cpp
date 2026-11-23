@@ -174,13 +174,20 @@ std::string App::AiDocContext()
 
 // ---------------------------------------------------------------- send / pump
 
+static bool NeedsApiKey(const AiSettings& ai)
+{
+    if (!AiClient::ResolveKey(ai).empty()) return false;
+    if (!ai.IsOpenAI()) return true;
+    return ai.openaiBaseUrl.empty() || ai.openaiBaseUrl.find("api.openai.com") != std::string::npos;
+}
+
 void App::AiSend()
 {
     if (aiClient.Busy()) return;
     std::string text = aiInput;
     while (!text.empty() && (text.back() == '\n' || text.back() == ' ')) text.pop_back();
     if (text.empty() && aiAttachments.empty()) return;
-    if (AiClient::ResolveKey(ai).empty()) { Toast("Add your Claude API key in Settings", true); showSettings = true; return; }
+    if (NeedsApiKey(ai)) { Toast(ai.IsOpenAI() ? "Add your OpenAI API key in Settings" : "Add your Claude API key in Settings", true); showSettings = true; return; }
 
     ChatMessage um;
     um.user = true;
@@ -314,7 +321,14 @@ void App::DrawAiTab()
     // Header
     ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("%s  \xC2\xB7  %s", ai.model.c_str(), ai.effort.c_str());
+    const std::string& activeModel = ai.ActiveModel();
+    if (ai.IsOpenAI())
+    {
+        if (ai.openaiSendReasoning) ImGui::Text("OpenAI  \xC2\xB7  %s  \xC2\xB7  %s", activeModel.c_str(), ai.effort.c_str());
+        else ImGui::Text("OpenAI  \xC2\xB7  %s", activeModel.c_str());
+    }
+    else
+        ImGui::Text("Claude  \xC2\xB7  %s  \xC2\xB7  %s", activeModel.c_str(), ai.effort.c_str());
     ImGui::PopStyleColor();
     ImGui::SameLine(W - U(80) - ImGui::GetFrameHeight());
     if (ImGui::Button("New chat", ImVec2(U(76), 0)) && !aiClient.Busy()) { chat.clear(); }
@@ -336,12 +350,15 @@ void App::DrawAiTab()
         if (ImGui::IsItemClicked()) showSettings = true;
     }
 
-    if (AiClient::ResolveKey(ai).empty())
+    if (NeedsApiKey(ai))
     {
         ImVec2 p = ImGui::GetCursorScreenPos();
         ImGui::Dummy(ImVec2(0, U(4)));
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + W);
-        ImGui::TextUnformatted("Connect Claude to build menus from a description. Add your API key in Settings, or set ANTHROPIC_API_KEY. You can also drive Fimgui from Claude Desktop or Claude Code over MCP (see Settings).");
+        if (ai.IsOpenAI())
+            ImGui::TextUnformatted("Connect an OpenAI-compatible model to build menus from a description. Add your API key in Settings, or set OPENAI_API_KEY. Local servers such as Ollama and LM Studio usually need no key.");
+        else
+            ImGui::TextUnformatted("Connect Claude to build menus from a description. Add your API key in Settings, or set ANTHROPIC_API_KEY. You can also drive Fimgui from Claude Desktop or Claude Code over MCP (see Settings).");
         ImGui::PopTextWrapPos();
         if (ui::PrimaryButton("Add API key", ImVec2(W, 0))) showSettings = true;
         (void)p;
@@ -363,7 +380,7 @@ void App::DrawAiTab()
         ImGui::PopFont();
         ImGui::PushTextWrapPos(cw);
         ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
-        ImGui::TextWrapped("Describe a menu and Claude draws it live on the canvas. Attach a screenshot to recreate a reference. Every change is one Ctrl+Z away.");
+        ImGui::TextWrapped("Describe a menu and the model draws it live on the canvas. Attach a screenshot to recreate a reference. Every change is one Ctrl+Z away.");
         ImGui::PopStyleColor();
         ImGui::PopTextWrapPos();
         ImGui::Dummy(ImVec2(0, U(6)));

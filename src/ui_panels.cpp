@@ -1487,33 +1487,67 @@ void App::DrawSettingsDialog()
     {
         float W = U(464);
         ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), 0.0f);
-        ImGui::TextUnformatted("Claude API");
+        ImGui::TextUnformatted("AI provider");
         ImGui::PopFont();
+        const char* providers[] = { "Claude", "OpenAI-compatible" };
+        int pi = ai.IsOpenAI() ? 1 : 0;
+        if (ui::Segmented("##aiprovider", &pi, providers, 2, W)) ai.provider = pi == 1 ? "openai" : "anthropic";
+
         ui::Label("API key");
         ImGui::SetNextItemWidth(W);
-        static char key[256];
-        if (ImGui::IsWindowAppearing()) snprintf(key, sizeof(key), "%s", ai.apiKey.c_str());
-        if (ImGui::InputTextWithHint("##key", platform::GetEnv("ANTHROPIC_API_KEY").empty() ? "sk-ant-..." : "Using ANTHROPIC_API_KEY from the environment", key, sizeof(key), ImGuiInputTextFlags_Password))
-            ai.apiKey = key;
-        ImGui::PushStyleColor(ImGuiCol_Text, TextFaint);
-        ImGui::TextWrapped("Stored encrypted for your Windows user (DPAPI) in %%APPDATA%%\\Fimgui. Leave empty to use ANTHROPIC_API_KEY.");
-        ImGui::PopStyleColor();
-        if (ImGui::SmallButton("Get an API key")) platform::OpenUrl("https://platform.claude.com/settings/keys");
+        static char keyA[256], keyO[256];
+        static std::string keyShownFor;
+        if (ImGui::IsWindowAppearing() || keyShownFor != ai.provider)
+        {
+            snprintf(keyA, sizeof(keyA), "%s", ai.apiKey.c_str());
+            snprintf(keyO, sizeof(keyO), "%s", ai.openaiApiKey.c_str());
+            keyShownFor = ai.provider;
+        }
+        if (ai.IsOpenAI())
+        {
+            std::string hint = platform::GetEnv("OPENAI_API_KEY").empty() ? "sk-... (optional for local servers)" : "Using OPENAI_API_KEY from the environment";
+            if (ImGui::InputTextWithHint("##key", hint.c_str(), keyO, sizeof(keyO), ImGuiInputTextFlags_Password))
+                ai.openaiApiKey = keyO;
+            ImGui::PushStyleColor(ImGuiCol_Text, TextFaint);
+            ImGui::TextWrapped("Stored encrypted for your Windows user (DPAPI) in %%APPDATA%%\\Fimgui. Leave empty for local servers that need no key, or set OPENAI_API_KEY.");
+            ImGui::PopStyleColor();
+            if (ImGui::SmallButton("Get an API key")) platform::OpenUrl("https://platform.openai.com/api-keys");
+        }
+        else
+        {
+            std::string hint = platform::GetEnv("ANTHROPIC_API_KEY").empty() ? "sk-ant-..." : "Using ANTHROPIC_API_KEY from the environment";
+            if (ImGui::InputTextWithHint("##key", hint.c_str(), keyA, sizeof(keyA), ImGuiInputTextFlags_Password))
+                ai.apiKey = keyA;
+            ImGui::PushStyleColor(ImGuiCol_Text, TextFaint);
+            ImGui::TextWrapped("Stored encrypted for your Windows user (DPAPI) in %%APPDATA%%\\Fimgui. Leave empty to use ANTHROPIC_API_KEY.");
+            ImGui::PopStyleColor();
+            if (ImGui::SmallButton("Get an API key")) platform::OpenUrl("https://platform.claude.com/settings/keys");
+        }
 
-        const char* models[] = { "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1" };
-        const char* modelNames[] = { "Claude Opus 5.5 (default)", "Claude Sonnet 5.5 (faster)", "Claude Haiku 5.5 (fastest)", "Claude Fable 5.1 (most capable)" };
-        int mi = 0;
-        for (int i = 0; i < 4; i++) if (ai.model == models[i]) mi = i;
         ui::Label("Model");
-        if (ui::Combo("##model", &mi, modelNames, 4, W)) ai.model = models[mi];
+        if (ai.IsOpenAI())
+        {
+            ui::TextField("##omodel", &ai.openaiModel, W, "gpt-4o");
+        }
+        else
+        {
+            const char* models[] = { "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1" };
+            const char* modelNames[] = { "Claude Opus 5.5 (default)", "Claude Sonnet 5.5 (faster)", "Claude Haiku 5.5 (fastest)", "Claude Fable 5.1 (most capable)" };
+            int mi = 0;
+            for (int i = 0; i < 4; i++) if (ai.model == models[i]) mi = i;
+            if (ui::Combo("##model", &mi, modelNames, 4, W)) ai.model = models[mi];
+        }
         const char* efforts[] = { "low", "medium", "high", "xhigh", "max" };
         int ei = 1;
         for (int i = 0; i < 5; i++) if (ai.effort == efforts[i]) ei = i;
         ui::Label("Effort (lower = faster drawing, higher = more careful designs)");
         if (ui::Segmented("##effort", &ei, efforts, 5, W)) ai.effort = efforts[ei];
+        if (ai.IsOpenAI())
+            ui::Check("Send as reasoning_effort (reasoning models only)", &ai.openaiSendReasoning);
         ui::Check("Send a canvas snapshot so the model sees the current design", &ai.sendSnapshot);
         ui::Label("API base URL");
-        ui::TextField("##base", &ai.baseUrl, W);
+        if (ai.IsOpenAI()) ui::TextField("##obase", &ai.openaiBaseUrl, W, "https://api.openai.com");
+        else ui::TextField("##base", &ai.baseUrl, W);
 
         ImGui::Dummy(ImVec2(0, U(10)));
         ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), 0.0f);
