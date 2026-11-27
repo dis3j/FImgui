@@ -63,6 +63,7 @@ json McpToolList()
         "target 'imgui' writes the C++ project for all top-level frames: menu .h/.cpp, runtime, effects, icons, images, videos, fonts and a DirectX 11 example host. "
         "target 'minecraft' writes a Minecraft 1.21.1 GUI for the first top-level frame: a Screen for Fabric or NeoForge, the menu class, the Fimgui Java runtime, baked layer textures and TTF fonts (src/main/java + src/main/resources). "
         "target 'web' writes a static website: every top-level frame is a page (the first is index.html), css/site.css, js/fimgui.js (state, controls, Show when) and assets/; a layer's 'link' (\"page:<frame id>\" or a URL) becomes a link. "
+        "A top-level frame with 'layoutOf' = <page frame id> is another screen size of that page (same html file, switched by window width via media queries, from its 'breakpoint' px or halfway between the widths); 'device' names its screen preset. "
         "Without target, the type of the open project decides.",
         Schema({ { "out_dir", { { "type", "string" }, { "description", "Absolute output folder" } } },
                  { "target", { { "type", "string" }, { "enum", { "imgui", "minecraft", "web" } } } },

@@ -619,6 +619,12 @@ json NodeToJson(const Node* n)
     if (n->hasHover) j["hoverColor"] = ColorJ(n->hoverColor);
     if (n->hasActive) j["activeColor"] = ColorJ(n->activeColor);
     if (!n->link.empty()) j["link"] = n->link;
+    if (!n->device.empty()) j["device"] = n->device;
+    if (!n->layoutOf.empty()) j["layoutOf"] = n->layoutOf;
+    if (n->breakpoint > 0) j["breakpoint"] = n->breakpoint;
+    if (!n->pageTitle.empty()) j["pageTitle"] = n->pageTitle;
+    if (!n->pageDesc.empty()) j["description"] = n->pageDesc;
+    if (n->scroll) j["scroll"] = "fixed";
     if (!n->showVar.empty()) j["showIf"] = { { "var", n->showVar }, { "value", n->showValue }, { "not", n->showNot } };
     if (n->sliderPart) j["sliderPart"] = n->sliderPart == 1 ? "fill" : "knob";
     if (n->role == Role::Combo || n->role == Role::MultiCombo)
@@ -845,6 +851,12 @@ void ApplyProps(Node* n, const json& p, Document* doc)
         else if (k == "hoverColor") { n->hasHover = !v.is_null(); if (n->hasHover) n->hoverColor = ParseColor(v, n->hoverColor); }
         else if (k == "activeColor") { n->hasActive = !v.is_null(); if (n->hasActive) n->activeColor = ParseColor(v, n->activeColor); }
         else if (k == "link") n->link = v.is_string() ? v.get<std::string>() : std::string();
+        else if (k == "device") n->device = v.is_string() ? v.get<std::string>() : std::string();
+        else if (k == "layoutOf") n->layoutOf = v.is_string() ? v.get<std::string>() : std::string();
+        else if (k == "breakpoint") n->breakpoint = std::max(0.0f, Num(v, 0));
+        else if (k == "pageTitle") n->pageTitle = v.is_string() ? v.get<std::string>() : std::string();
+        else if (k == "description") n->pageDesc = v.is_string() ? v.get<std::string>() : std::string();
+        else if (k == "scroll") n->scroll = v.is_string() ? (v.get<std::string>() == "fixed" ? 1 : 0) : (Num(v, 0) != 0 ? 1 : 0);
         else if (k == "showIf")
         {
             if (v.is_object())

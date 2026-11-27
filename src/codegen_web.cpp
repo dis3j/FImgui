@@ -6,6 +6,7 @@
 #include "fonts.h"
 #include "platform.h"
 #include "version.h"
+#include "web_devices.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -59,14 +60,17 @@ namespace
         return s;
     }
 
+    bool IsPageFrame(const Node* n) { return n && !n->parent && n->type == NodeType::Frame && n->visible; }
+
     // Pages in order: the first visible top-level frame is index.html, the others are named after the frame.
+    // Layouts of a page (other screen sizes) share its file.
     std::vector<std::pair<Node*, std::string>> Pages(Document& doc)
     {
         std::vector<std::pair<Node*, std::string>> out;
         std::set<std::string> used;
         for (auto& r : doc.roots)
         {
-            if (r->type != NodeType::Frame || !r->visible) continue;
+            if (!IsPageFrame(r.get()) || WebLayoutBase(doc, r.get()) != r.get()) continue;
             std::string base = out.empty() ? "index" : Slug(r->name, "page");
             std::string name = base;
             for (int i = 2; used.count(name); i++) name = base + "-" + std::to_string(i);
@@ -141,6 +145,94 @@ a { color: inherit; text-decoration: none; }
   }, 350);
 })();
 </script>
+)";
+
+    // Live preview of all screen sizes of a page (served by the editor, not exported).
+    const char* kScreensHead = R"(<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screens - Fimgui preview</title>
+<style>
+:root { color-scheme: dark; }
+body { margin: 0; background: #1e1e1e; color: #e6e6e6; font: 13px/1.4 system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 20px; background: #2c2c2c; border-bottom: 1px solid #383838; }
+header b { font-weight: 600; }
+nav { display: flex; flex-wrap: wrap; gap: 2px; }
+nav a { padding: 4px 10px; border-radius: 5px; color: #b3b3b3; text-decoration: none; }
+nav a:hover { background: #383838; }
+nav a[aria-current] { background: #0d99ff; color: #fff; }
+header label { margin-left: auto; display: flex; gap: 6px; align-items: center; color: #b3b3b3; cursor: pointer; }
+main { display: flex; gap: 40px; align-items: flex-start; padding: 24px 20px 40px; overflow-x: auto; }
+figure { margin: 0; flex: none; }
+figcaption { margin-bottom: 8px; color: #b3b3b3; white-space: nowrap; }
+figcaption span { color: #808080; }
+.screen { overflow: hidden; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px #444; }
+iframe { display: block; border: 0; transform-origin: 0 0; }
+</style>
+</head>
+<body>
+<header><b id="site"></b><nav id="pages"></nav><label><input type="checkbox" id="fit" checked> Fit to the window height</label></header>
+<main id="screens"></main>
+<script>
+const data = )";
+
+    const char* kScreensTail = R"(;
+let page = new URLSearchParams(location.search).get('page');
+const $ = id => document.getElementById(id);
+$('site').textContent = data.site;
+function render() {
+  const p = data.pages.find(x => x.file === page) || data.pages[0];
+  if (!p) { $('screens').textContent = 'Add a page to preview it.'; return; }
+  page = p.file;
+  $('pages').replaceChildren(...data.pages.map(x => {
+    const a = document.createElement('a');
+    a.href = '?page=' + encodeURIComponent(x.file);
+    a.textContent = x.name;
+    if (x.file === page) a.setAttribute('aria-current', 'page');
+    a.onclick = e => { e.preventDefault(); page = x.file; history.replaceState(null, '', a.href); render(); };
+    return a;
+  }));
+  const avail = Math.max(240, innerHeight - $('screens').getBoundingClientRect().top - 72);
+  $('screens').replaceChildren(...p.screens.map(s => {
+    const k = $('fit').checked ? Math.min(1, avail / s.h) : 1;
+    const f = document.createElement('figure');
+    const c = document.createElement('figcaption');
+    c.innerHTML = '<span></span>';
+    c.prepend(s.label + ' ');
+    c.querySelector('span').textContent = s.w + ' × ' + s.h + (k < 1 ? ', ' + Math.round(k * 100) + '%' : '');
+    const box = document.createElement('div');
+    box.className = 'screen';
+    box.style.width = s.w * k + 'px';
+    box.style.height = s.h * k + 'px';
+    const fr = document.createElement('iframe');
+    fr.title = s.label;
+    fr.width = s.w;
+    fr.height = s.h;
+    fr.style.transform = 'scale(' + k + ')';
+    fr.src = '/' + p.file;
+    box.append(fr);
+    f.append(c, box);
+    return f;
+  }));
+}
+$('fit').onchange = render;
+addEventListener('resize', () => { clearTimeout(render.t); render.t = setTimeout(render, 150); });
+render();
+// follow the editor: another page, or a new set of screen sizes
+let v = null;
+setInterval(async () => {
+  try {
+    const s = await (await fetch('/__fimgui/live', { cache: 'no-store' })).json();
+    if (v !== null && s.v !== v) { location.replace('?page=' + encodeURIComponent(s.page || page)); return; }
+    v = s.v;
+    if (s.page && s.page !== page && data.pages.some(x => x.file === s.page)) { page = s.page; history.replaceState(null, '', '?page=' + encodeURIComponent(page)); render(); }
+  } catch { /* the editor is closed */ }
+}, 500);
+</script>
+</body>
+</html>
 )";
 
     struct WebGen
@@ -325,8 +417,18 @@ a { color: inherit; text-decoration: none; }
             else
             {
                 float y = n->type == NodeType::Line ? n->y - n->strokeWidth * 0.5f : n->y;
-                P("position", "absolute");
-                P("left", Px(x));
+                if (n->scroll == 1 && parent && !parent->parent && !snippet)
+                {
+                    // stays on screen while the page scrolls: placed over the centered (and zoomed, see fimgui.js) page
+                    P("position", "fixed");
+                    P("left", "calc((var(--fim-vw, 100vw) / var(--fim-z, 1) - " + CssNum(parent->w) + "px) / 2 + " + CssNum(x) + "px)");
+                    P("z-index", "50");
+                }
+                else
+                {
+                    P("position", "absolute");
+                    P("left", Px(x));
+                }
                 P("top", Px(y));
                 if (!autoW) P("width", Px(w));
                 if (n->type == NodeType::Line) P("height", Px(std::max(1.0f, n->strokeWidth)));
@@ -529,7 +631,12 @@ a { color: inherit; text-decoration: none; }
                 if (external) { A("target", "_blank"); A("rel", "noopener"); }
             }
             if (tag == "button") attrs = " type=\"button\"" + attrs;
-            if (root) { tag = "main"; A("data-w", N(n->w)); }
+            if (root)
+            {
+                tag = "main";
+                A("data-w", N(n->w));
+                if (opt.stretchPhones && n->w < 600) attrs += " data-stretch";
+            }
 
             // media and text
             bool selfClose = false;
@@ -673,10 +780,59 @@ a { color: inherit; text-decoration: none; }
     }
 }
 
+Node* WebLayoutBase(Document& doc, Node* frame)
+{
+    if (!IsPageFrame(frame)) return nullptr;
+    if (frame->layoutOf.empty() || frame->layoutOf == frame->id) return frame;
+    Node* base = doc.Find(frame->layoutOf);
+    // a layout of a missing page, or of another layout, is a page of its own
+    return IsPageFrame(base) && (base->layoutOf.empty() || base->layoutOf == base->id) ? base : frame;
+}
+
+std::vector<WebLayout> WebPageLayouts(Document& doc, Node* frame)
+{
+    std::vector<WebLayout> out;
+    Node* base = WebLayoutBase(doc, frame);
+    if (!base) return out;
+    for (auto& r : doc.roots)
+        if (r.get() == base || (IsPageFrame(r.get()) && WebLayoutBase(doc, r.get()) == base)) out.push_back({ r.get(), 0, 0 });
+    std::stable_sort(out.begin(), out.end(), [](const WebLayout& a, const WebLayout& b) { return a.frame->w < b.frame->w; });
+    for (size_t i = 1; i < out.size(); i++)
+    {
+        const Node* f = out[i].frame;
+        float bp = f->breakpoint > 0 ? std::round(f->breakpoint) : std::round((out[i - 1].frame->w + f->w) * 0.5f);
+        out[i].minW = std::max(bp, out[i - 1].minW + 1);
+        out[i - 1].maxW = out[i].minW - 1;
+    }
+    return out;
+}
+
 std::string WebPageFile(Document& doc, const Node* frame)
 {
-    for (auto& [n, file] : Pages(doc)) if (n == frame) return file;
+    Node* base = WebLayoutBase(doc, const_cast<Node*>(frame));
+    for (auto& [n, file] : Pages(doc)) if (n == base) return file;
     return "";
+}
+
+namespace
+{
+    // Frame id -> html file, for pages and their layouts (links may point at either).
+    std::map<std::string, std::string> PageFiles(Document& doc)
+    {
+        std::map<std::string, std::string> out;
+        for (auto& [n, file] : Pages(doc))
+            for (auto& l : WebPageLayouts(doc, n)) out[l.frame->id] = file;
+        return out;
+    }
+
+    // "@media (min-width: 579px) and (max-width: 1103.98px)" for the window widths of a layout.
+    std::string MediaOf(float minW, float maxW)
+    {
+        std::string m;
+        if (minW > 0) m = "(min-width: " + CssNum(minW) + "px)";
+        if (maxW > 0) m += (m.empty() ? "" : " and ") + std::string("(max-width: ") + CssNum(maxW + 0.98f) + "px)";
+        return m.empty() ? m : "@media " + m;
+    }
 }
 
 WebSite BuildWebSite(Document& doc, const WebOptions& opt, const std::string& runtimeDir, bool liveReload)
@@ -691,23 +847,42 @@ WebSite BuildWebSite(Document& doc, const WebOptions& opt, const std::string& ru
     g_layoutVars = layoutVars;
 
     auto pages = Pages(doc);
-    for (auto& [n, file] : pages) { g.pageFile[n->id] = file; site.pages.push_back({ n->id, file }); }
+    g.pageFile = PageFiles(doc);
+    for (auto& [n, file] : pages) site.pages.push_back({ n->id, file });
     std::string siteName = opt.title.empty() ? doc.name : opt.title;
     std::string state = g.StateJson(siteName);
 
     for (auto& [n, file] : pages)
     {
         std::ostringstream body;
-        g.heading = HeadingOf(n);
-        g.Emit(n, body, 1, false, nullptr, 0.0f);
         std::string bodyCls = "p-" + Slug(n->id, "x");
-        if (n->fill.type) g.Rule(g.css, "body." + bodyCls, "  background: " + CssPaint(n->fill) + ";\n");
+        // Every screen size of the page is in the file; media queries show the one for the window width.
+        auto layouts = WebPageLayouts(doc, n);
+        for (auto& l : layouts)
+        {
+            Node* f = l.frame;
+            g.heading = HeadingOf(f);
+            g.Emit(f, body, 1, false, nullptr, 0.0f);
+            std::string bg = f->fill.type ? "  background: " + CssPaint(f->fill) + ";\n" : std::string();
+            if (layouts.size() == 1) { g.Rule(g.css, "body." + bodyCls, bg); continue; }
+            std::string sel = "main." + ClassOf(f);
+            if (l.minW > 0) g.css << "@media (max-width: " << CssNum(l.minW - 0.02f) << "px) { " << sel << " { display: none; } }\n";
+            if (l.maxW > 0) g.css << "@media (min-width: " << CssNum(l.maxW + 1) << "px) { " << sel << " { display: none; } }\n";
+            if (!bg.empty()) g.css << MediaOf(l.minW, l.maxW) << " {\n" << "body." << bodyCls << " {\n" << bg << "}\n}\n";
+        }
+        for (size_t i = 1; i < layouts.size(); i++)
+            if (std::fabs(layouts[i].frame->w - layouts[i - 1].frame->w) < 0.5f)
+                g.Warn("Page \"" + n->name + "\": two layouts are " + CssNum(layouts[i].frame->w) + " px wide, give one of them a different width");
 
-        std::string title = file == "index.html" ? siteName : n->name + " \xC2\xB7 " + siteName;
+        std::string title = !n->pageTitle.empty() ? n->pageTitle : file == "index.html" ? siteName : n->name + " \xC2\xB7 " + siteName;
         std::ostringstream h;
         h << "<!doctype html>\n<html lang=\"" << Esc(opt.lang.empty() ? "en" : opt.lang, true) << "\">\n<head>\n"
           << "<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-          << "<title>" << Esc(title, false) << "</title>\n"
+          << "<title>" << Esc(title, false) << "</title>\n";
+        if (!n->pageDesc.empty()) h << "<meta name=\"description\" content=\"" << Esc(n->pageDesc, true) << "\">\n";
+        h << "<meta property=\"og:title\" content=\"" << Esc(title, true) << "\">\n";
+        if (!n->pageDesc.empty()) h << "<meta property=\"og:description\" content=\"" << Esc(n->pageDesc, true) << "\">\n";
+        h << "<meta property=\"og:type\" content=\"website\">\n"
           << "<meta name=\"generator\" content=\"Fimgui " FIMGUI_VERSION "\">\n";
         if (n->fill.type == 1) h << "<meta name=\"theme-color\" content=\"" << ColorToHex(ImVec4(n->fill.c0.x, n->fill.c0.y, n->fill.c0.z, 1)) << "\">\n";
         h << "<link rel=\"stylesheet\" href=\"css/site.css\">\n<script src=\"js/fimgui.js\" defer></script>\n</head>\n"
@@ -723,6 +898,28 @@ WebSite BuildWebSite(Document& doc, const WebOptions& opt, const std::string& ru
     css << "/* " << siteName << " - generated by Fimgui " FIMGUI_VERSION ". Change the design and export again instead of editing this file. */\n\n"
         << g.fontCss.str() << (g.fontCss.tellp() > 0 ? "\n" : "") << kBaseCss << "\n" << g.css.str() << "\n/* states */\n" << g.states.str();
     site.files["css/site.css"] = Text(css.str());
+
+    if (liveReload)
+    {
+        // Preview only: every screen size of the page side by side, live (opened from the Site panel).
+        json pj = json::array();
+        for (auto& [n, file] : pages)
+        {
+            json screens = json::array();
+            for (auto& l : WebPageLayouts(doc, n))
+            {
+                bool rot = false;
+                const WebDevice* d = WebDeviceOf(l.frame, &rot);
+                float h = d ? WebScreenOf(d, rot).y : std::min(l.frame->h, 900.0f);
+                std::string label = d ? std::string(d->name) : std::to_string((int)std::round(l.frame->w)) + " px";
+                screens.push_back({ { "label", label }, { "w", (int)std::round(l.frame->w) }, { "h", (int)std::round(h) } });
+            }
+            pj.push_back({ { "file", file }, { "name", n->name }, { "screens", screens } });
+        }
+        std::string data = json{ { "site", siteName }, { "pages", pj } }.dump();
+        for (size_t p = 0; (p = data.find("</", p)) != std::string::npos; p += 3) data.replace(p, 2, "<\\/");
+        site.files["__fimgui/screens.html"] = Text(std::string(kScreensHead) + data + kScreensTail);
+    }
 
     std::vector<unsigned char> js;
     if (platform::ReadFile((fs::u8path(runtimeDir) / "web" / "fimgui.js").u8string(), js)) site.files["js/fimgui.js"] = std::make_shared<const std::string>(js.begin(), js.end());
@@ -779,7 +976,7 @@ std::string NodeToHTML(Document& doc, Node* n)
     WebGen g(doc, opt, site);
     g.snippet = n->parent != nullptr || n->type != NodeType::Frame;
     EnsureVars(doc, g.start);
-    for (auto& [p, file] : Pages(doc)) g.pageFile[p->id] = file;
+    g.pageFile = PageFiles(doc);
     std::ostringstream h;
     if (!g.snippet) g.heading = HeadingOf(n);
     g.Emit(n, h, 0, false, nullptr, 0.0f);

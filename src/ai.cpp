@@ -20,6 +20,10 @@ Order operations so the result looks good while being built: background frame fi
 {"op":"svg","parent":"<id>","node":{"id":"...","name":"...","x":0,"y":0,"w":16,"h":16,"recolor":true,"fill":"#FFFFFF"},"svg":"<svg ...>...</svg>"}   create a vector icon from SVG markup
 {"op":"clear"}   remove everything (only when the user asks to start over)
 {"op":"select","ids":["..."]}
+{"op":"web_device","id":"<page frame id>","device":"<preset>","rotated":false}   web projects: size a page for a screen preset
+{"op":"web_layout","page":"<page frame id>","device":"<preset>"}   web projects: add a breakpoint of the page (an adapted copy for another screen; the site switches by window width)
+Web page props: "pageTitle", "description" (search results, link previews) on the page frame; "scroll":"fixed" on a direct child of a page keeps it on screen while scrolling (headers, chat buttons).
+Screen presets: desktop, desktop-hd, laptop, laptop-hd, ipad-pro, ipad-air, ipad-mini, android-tablet, iphone-17-pro-max, iphone-air, iphone-17, iphone-16e, iphone-se, iphone-duo, iphone-duo-folded, pixel-10, galaxy-s25-ultra, galaxy-s25, android-compact, galaxy-z-fold7, galaxy-z-fold7-folded, pixel-10-pro-fold, pixel-10-pro-fold-folded, galaxy-z-flip7, galaxy-z-flip7-cover.
 
 # Node model (JSON)
 Coordinates x,y are RELATIVE TO THE PARENT's top-left corner. Sizes w,h in px. Top-level frames are placed on an infinite canvas; each top-level frame becomes one ImGui window in the exported code.

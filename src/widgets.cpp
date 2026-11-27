@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 using namespace theme;
 
@@ -474,11 +475,16 @@ namespace ui
     int Section(const char* title, int button, Icon extra, const char* extraTip)
     {
         int res = 0;
-        ImGui::Dummy(ImVec2(0, U(6)));
-        ImVec2 p = ImGui::GetCursorScreenPos();
         float w = ImGui::GetContentRegionAvail().x;
-        ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x - U(16), p.y), ImVec2(p.x + w + U(16), p.y), Divider);
-        ImGui::Dummy(ImVec2(0, U(10)));
+        if (ImGui::GetCursorPosY() > ImGui::GetCursorStartPos().y + U(2))
+        {
+            // a divider between sections; the first one sits right under the panel header, which has its own line
+            ImGui::Dummy(ImVec2(0, U(6)));
+            ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x - U(16), p.y), ImVec2(p.x + w + U(16), p.y), Divider);
+            ImGui::Dummy(ImVec2(0, U(10)));
+        }
+        else ImGui::Dummy(ImVec2(0, U(4)));
         float x0 = ImGui::GetCursorPosX();
         ImGui::PushFont(fonts::UI(fonts::UI_SemiBold), ImGui::GetStyle().FontSizeBase + 1.0f);
         ImGui::AlignTextToFramePadding();
@@ -587,7 +593,35 @@ namespace ui
         return ImGui::Combo(id, idx, items, count);
     }
 
-    bool Check(const char* label, bool* v) { return ImGui::Checkbox(label, v); }
+    // Figma-style checkbox: a small rounded box (accent with a white tick when on) and the label.
+    bool Check(const char* label, bool* v)
+    {
+        const char* end = strstr(label, "##");
+        std::string text(label, end ? end : label + strlen(label));
+        float h = ImGui::GetFrameHeight(), box = std::round(U(14));
+        ImVec2 ts = ImGui::CalcTextSize(text.c_str());
+        ImVec2 p = ImGui::GetCursorScreenPos();
+        float w = box + (text.empty() ? 0 : U(8) + ts.x);
+        bool clicked = ImGui::InvisibleButton(label, ImVec2(w, h));
+        if (clicked) *v = !*v;
+        bool hov = ImGui::IsItemHovered();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 a(p.x, std::round(p.y + (h - box) * 0.5f)), b(a.x + box, a.y + box);
+        float r = U(3);
+        if (*v)
+        {
+            dl->AddRectFilled(a, b, hov ? IM_COL32(35, 165, 255, 255) : Accent, r);
+            DrawIcon(dl, Icon::Check, ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), box * 0.85f, IM_COL32_WHITE);
+        }
+        else
+        {
+            dl->AddRectFilled(a, b, Field, r);
+            dl->AddRect(a, b, hov ? IM_COL32(255, 255, 255, 120) : IM_COL32(255, 255, 255, 70), r, 0, std::max(1.0f, U(1)));
+        }
+        if (!text.empty()) dl->AddText(ImVec2(b.x + U(8), p.y + (h - ts.y) * 0.5f), Text, text.c_str());
+        if (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Space) && !clicked) { *v = !*v; clicked = true; }
+        return clicked;
+    }
 
     void Label(const char* text, bool dim)
     {

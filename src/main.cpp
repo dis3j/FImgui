@@ -281,6 +281,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             }
             else if (a == "--select") g_appInstance.SetSelection({ next() });
             else if (a == "--tab") g_appInstance.rightTab = std::atoi(next().c_str());
+            else if (a == "--tool")
+            {
+                // --tool move|frame|rect|ellipse|line|text|hand|pen: the active tool (screenshots of tool panels)
+                static const char* names[] = { "move", "frame", "rect", "ellipse", "line", "text", "hand", "pen" };
+                std::string t = next();
+                for (int i = 0; i < 8; i++) if (t == names[i]) g_appInstance.tool = (Tool)i;
+            }
             else if (a == "--var")
             {
                 std::string kv = next();

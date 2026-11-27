@@ -217,11 +217,17 @@
     if (el) set(el.dataset.input, el.value);
   });
 
-  // ---- pages wider than the window are scaled down to fit (body[data-fit])
+  // ---- pages wider than the window are scaled down to fit (body[data-fit]);
+  // phone layouts (data-stretch) follow the screen width, up to 125%
   function fit() {
-    if (!document.body.hasAttribute('data-fit')) return;
-    const vw = document.documentElement.clientWidth;
-    for (const page of document.querySelectorAll('.page')) page.style.zoom = Math.min(1, vw / +page.dataset.w);
+    const vw = document.documentElement.clientWidth, down = document.body.hasAttribute('data-fit');
+    document.documentElement.style.setProperty('--fim-vw', vw + 'px');   // fixed layers center on the page with it
+    for (const page of document.querySelectorAll('.page')) {
+      const k = vw / +page.dataset.w;
+      const z = page.hasAttribute('data-stretch') ? Math.min(k, 1.25) : down ? Math.min(1, k) : 1;
+      page.style.zoom = z === 1 ? '' : z;
+      page.style.setProperty('--fim-z', z);
+    }
   }
 
   addEventListener('resize', fit);

@@ -13,7 +13,21 @@ struct WebOptions
     std::string lang = "en";
     bool fitWidth = true;       // pages wider than the window are scaled down to fit
     bool fonts = true;          // ship the design fonts (@font-face)
+    bool stretchPhones = true;  // layouts narrower than 600 px follow the screen width (scaled up to 125%)
 };
+
+// One screen size of a page: the page frame itself or a frame with layoutOf = the page.
+// The browser shows it while the window is minW..maxW px wide (maxW 0 = no upper limit).
+struct WebLayout
+{
+    Node* frame = nullptr;
+    float minW = 0, maxW = 0;
+};
+
+// The page a frame belongs to: itself for a page, the page of a layout, nullptr when it is no page frame.
+Node* WebLayoutBase(Document& doc, Node* frame);
+// The layouts of the page of 'frame', narrowest first (just the page when it has none).
+std::vector<WebLayout> WebPageLayouts(Document& doc, Node* frame);
 
 struct WebSite
 {

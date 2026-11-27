@@ -192,6 +192,14 @@ struct Node
     bool  hasHover = false; ImVec4 hoverColor = ImVec4(1, 1, 1, 1);
     bool  hasActive = false; ImVec4 activeColor = ImVec4(0.05f, 0.6f, 1, 1);
     std::string link;                       // web: "page:<frame id>" or a URL, opened on click
+    // Web pages (top-level frames): the device preset the page is designed for ("iphone-17", "" custom),
+    // and, for another screen size of a page, the id of the page frame it belongs to. Such a layout is shown
+    // instead of the page from 'breakpoint' px of window width (0 = halfway between the layout widths).
+    std::string device;
+    std::string layoutOf;
+    float breakpoint = 0.0f;
+    std::string pageTitle, pageDesc;        // web page: <title> (empty = name + site) and meta description
+    int   scroll = 0;                       // web, layers of a page: 0 scroll with the page, 1 fixed (stay on screen)
     std::string showVar;                    // visible only when showVar == showValue (or != when showNot)
     float showValue = 1.0f;
     bool  showNot = false;

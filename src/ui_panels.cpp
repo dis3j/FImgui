@@ -50,15 +50,18 @@ static void LayerRow(App* app, Node* n, int depth, LayerDrop& drop)
     bool hiddenByCond = !NodeConditionVisible(n, app->vars);
 
     ImGui::PushID(n->id.c_str());
+    ImGui::SetNextItemAllowOverlap();   // the chevron, lock and eye sit on top of the row and must get their own clicks
     ImGui::InvisibleButton("##row", ImVec2(w, h));
-    bool hov = ImGui::IsItemHovered();
+    // Also while the lock / eye is held, or the toggles would vanish under the mouse before the click completes
+    bool hov = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    bool rowHov = ImGui::IsItemHovered();
     if (ImGui::IsItemClicked(0))
     {
         if (io.KeyShift || io.KeyCtrl) app->Select(n->id, true);
         else app->Select(n->id);
     }
     if (ImGui::IsItemClicked(1)) { if (!sel) app->Select(n->id); app->openContextMenu = true; }
-    if (hov && ImGui::IsMouseDoubleClicked(0))
+    if (rowHov && ImGui::IsMouseDoubleClicked(0))
     {
         app->renamingId = n->id;
         snprintf(app->renameBuf, sizeof(app->renameBuf), "%s", n->name.c_str());
@@ -343,9 +346,16 @@ void App::DrawRightPanel()
     if (IconButton("##aitab", Icon::Sparkle, rightTab == Tab_AI, U(28), "AI assistant (Ctrl+I)")) rightTab = rightTab == Tab_AI ? Tab_Design : Tab_AI;
     ImGui::SameLine(0, U(4));
     if (IconButton("##settings", Icon::Settings, false, U(28), "Settings")) showSettings = true;
-    float zoomW = U(58);
-    float exportW = U(72);
-    ImGui::SameLine(ImGui::GetWindowWidth() - zoomW - exportW - U(16));
+    // Export and zoom sit at the right edge; in a narrow panel they shrink instead of covering the icons
+    float iconsEnd = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x + U(8);
+    float zoomW = U(52), exportW = U(72);
+    float room = ImGui::GetWindowWidth() - U(12) - U(4) - iconsEnd;
+    if (zoomW + exportW > room)
+    {
+        zoomW = std::max(ImGui::CalcTextSize("100%").x + U(8), room - exportW);
+        exportW = std::max(ImGui::CalcTextSize("Export").x + U(16), room - zoomW);
+    }
+    ImGui::SameLine(std::max(iconsEnd, ImGui::GetWindowWidth() - zoomW - exportW - U(16)));
     if (ui::PrimaryButton("Export", ImVec2(exportW, U(28)))) showExport = true;
     ImGui::SameLine(0, U(4));
     char zbuf[16];
@@ -504,12 +514,17 @@ void App::DrawDesignTab()
     float half = (W - U(8)) * 0.5f;
     auto nodes = SelNodes();
 
+    if (IsWeb() && tool == Tool::Frame)
+    {
+        DrawWebFramePresets(W);
+        return;
+    }
     if (nodes.empty())
     {
         bool minecraft = IsMinecraft();
         if (minecraft) DrawMinecraftPanel(W);
         if (IsWeb()) DrawWebPanel(W);
-        ui::Section("Page");
+        ui::Section(IsWeb() ? "Canvas" : "Page");
         ImVec4 c = doc.canvasColor;
         if (ui::ColorRow("##canvas", &c, W)) { doc.canvasColor = c; MarkDirty(); }
         ui::Section("State variables");
@@ -526,7 +541,7 @@ void App::DrawDesignTab()
             ui::Label(v.name.c_str(), false);
             ImGui::SameLine(W * 0.45f);
             ImGui::SetNextItemWidth(W * 0.55f);
-            if (v.kind == VarKind::Bool) { bool b = vars.Get(v.name) != 0; if (ImGui::Checkbox("##v", &b)) vars.num[v.name] = b ? 1.0f : 0.0f; }
+            if (v.kind == VarKind::Bool) { bool b = vars.Get(v.name) != 0; if (ui::Check("##v", &b)) vars.num[v.name] = b ? 1.0f : 0.0f; }
             else if (v.kind == VarKind::String) ui::TextField("##v", &vars.str[v.name], W * 0.55f);
             else { float f = vars.Get(v.name); if (ImGui::DragFloat("##v", &f, (v.kind == VarKind::Int || v.kind == VarKind::Mask) ? 1.0f : 0.1f, 0, 0, (v.kind == VarKind::Int || v.kind == VarKind::Mask) ? "%.0f" : "%.2f")) vars.num[v.name] = (v.kind == VarKind::Int || v.kind == VarKind::Mask) ? std::round(f) : f; }
             ImGui::PopID();
@@ -992,7 +1007,7 @@ static bool ComboEditor(App* app, Node* n, float W)
     {
         ImGui::PushID(i);
         bool def = multi ? (mask & (1u << i)) != 0 : (int)n->value == i;
-        if (multi) { if (ImGui::Checkbox("##def", &def)) { n->value = (float)(def ? (mask | (1u << i)) : (mask & ~(1u << i))); ch = true; } }
+        if (multi) { if (ui::Check("##def", &def)) { n->value = (float)(def ? (mask | (1u << i)) : (mask & ~(1u << i))); ch = true; } }
         else if (ImGui::RadioButton("##def", def)) { n->value = (float)i; ch = true; }
         ImGui::SameLine(0, U(6));
         float bw = ImGui::GetFrameHeight();
@@ -1220,7 +1235,7 @@ void App::DrawPrototypeTab()
         ui::Label(v.name.c_str(), false);
         ImGui::SameLine(W * 0.45f);
         ImGui::SetNextItemWidth(W * 0.55f);
-        if (v.kind == VarKind::Bool) { bool b = vars.Get(v.name) != 0; if (ImGui::Checkbox("##v", &b)) vars.num[v.name] = b ? 1.0f : 0.0f; }
+        if (v.kind == VarKind::Bool) { bool b = vars.Get(v.name) != 0; if (ui::Check("##v", &b)) vars.num[v.name] = b ? 1.0f : 0.0f; }
         else if (v.kind == VarKind::String) ui::TextField("##v", &vars.str[v.name], W * 0.55f);
         else { float f = vars.Get(v.name); if (ImGui::DragFloat("##v", &f, (v.kind == VarKind::Int || v.kind == VarKind::Mask) ? 0.1f : 0.5f, 0, 0, (v.kind == VarKind::Int || v.kind == VarKind::Mask) ? "%.0f" : "%.2f")) vars.num[v.name] = (v.kind == VarKind::Int || v.kind == VarKind::Mask) ? std::round(f) : f; }
         ImGui::PopID();
@@ -1342,10 +1357,11 @@ void App::DrawExportDialog()
             ImGui::SameLine(lx);
             ui::TextField("##wlang", &webOpt.lang, W - lx, "en");
             ui::Check("Fit pages into narrow windows", &webOpt.fitWidth);
+            ui::Check("Scale phone layouts to the screen width", &webOpt.stretchPhones);
             ui::Check("Ship design fonts (@font-face)", &webOpt.fonts);
             ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + W);
-            ImGui::TextUnformatted("Every top-level frame becomes a page: the first is index.html. Writes the pages, css/site.css, js/fimgui.js and assets/. Upload the folder to any static hosting.");
+            ImGui::TextUnformatted("Every top-level frame becomes a page: the first is index.html. Layouts of a page for other screens go into the same file and switch with the window width. Writes the pages, css/site.css, js/fimgui.js and assets/. Upload the folder to any static hosting.");
             ImGui::PopTextWrapPos();
             ImGui::PopStyleColor();
         }

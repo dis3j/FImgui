@@ -131,6 +131,24 @@ void DrawIcon(ImDrawList* dl, Icon icon, ImVec2 c, float s, ImU32 col)
         d(8, 4); d(4, 8); d(12, 8); d(8, 12);
         break;
     }
+    case Icon::Desktop: Rc(1.5f, 2.5f, 14.5f, 11, 1); Ln(8, 11, 8, 13.5f); Ln(5, 13.5f, 11, 13.5f); break;
+    case Icon::Tablet: Rc(3, 1.5f, 13, 14.5f, 1.5f); Ln(7, 12.3f, 9, 12.3f); break;
+    case Icon::Phone: Rc(4.5f, 1.5f, 11.5f, 14.5f, 1.8f); Ln(7, 3.6f, 9, 3.6f); break;
+    case Icon::Foldable:
+        Rc(1.5f, 3, 14.5f, 13, 1.5f);
+        for (float y = 4.2f; y < 12.5f; y += 2.2f) Ln(8, y, 8, y + 1.1f);
+        break;
+    case Icon::Orientation:
+        Rc(2, 5.5f, 9, 14, 1.2f);
+        dl->PathArcTo(P(8.5f, 7.5f), 5 * u, -1.75f, -0.15f);
+        dl->PathStroke(col, 0, t);
+        Ln(13.4f, 6.8f, 13.4f, 9.3f); Ln(13.4f, 6.8f, 11.2f, 7.6f);
+        break;
+    case Icon::Globe:
+        dl->AddCircle(c, 6 * u, col, 0, t);
+        dl->AddEllipse(c, ImVec2(2.6f * u, 6 * u), col, 0, 0, t);
+        Ln(2.2f, 8, 13.8f, 8);
+        break;
     }
 }
 

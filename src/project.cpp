@@ -144,7 +144,7 @@ void App::ApplyProjectJavaSettings(const json& j)
 
 static json WebJson(const WebOptions& o, const std::string& projectDir)
 {
-    return { { "outDir", ProjectRelative(o.outDir, projectDir) }, { "title", o.title }, { "lang", o.lang }, { "fitWidth", o.fitWidth }, { "fonts", o.fonts } };
+    return { { "outDir", ProjectRelative(o.outDir, projectDir) }, { "title", o.title }, { "lang", o.lang }, { "fitWidth", o.fitWidth }, { "fonts", o.fonts }, { "stretchPhones", o.stretchPhones } };
 }
 
 void App::ApplyProjectWebSettings(const json& j)
@@ -157,6 +157,7 @@ void App::ApplyProjectWebSettings(const json& j)
     webOpt.lang = j.value("lang", webOpt.lang);
     webOpt.fitWidth = j.value("fitWidth", webOpt.fitWidth);
     webOpt.fonts = j.value("fonts", webOpt.fonts);
+    webOpt.stretchPhones = j.value("stretchPhones", webOpt.stretchPhones);
 }
 
 bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* err, int type)
@@ -204,6 +205,7 @@ bool App::CreateProject(const std::string& name, bool fromCurrent, std::string* 
         // The first page: index.html at a common desktop width.
         Node* f = CreateNode(NodeType::Frame, ImVec2(0, 0), ImVec2(1440, 900), nullptr);
         f->name = "Home";
+        f->device = "desktop";
         f->fill = Paint{ 1, ImVec4(1, 1, 1, 1) };
         fitPending = true;
     }

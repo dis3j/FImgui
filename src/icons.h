@@ -9,6 +9,7 @@ enum class Icon
     ArrowDown, ArrowRight, Wrap, Link, Unlink, Code, Export, Menu, Search, Settings, Close,
     Send, Stop, Attach, Copy, Grid, Radius, Undo, Redo, TextLeft, TextCenter, TextRight,
     Component, Check, Timeline,
+    Desktop, Tablet, Phone, Foldable, Orientation, Globe,
 };
 
 void DrawIcon(ImDrawList* dl, Icon icon, ImVec2 center, float size, ImU32 col);

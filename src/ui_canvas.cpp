@@ -70,7 +70,7 @@ static bool LabelRect(App* app, Node* n, ImVec2* a, ImVec2* b)
     float fs = 11.0f * dpi;
     ImVec2 ts = fonts::UI(fonts::UI_Regular)->CalcTextSizeA(fs, FLT_MAX, 0, n->name.c_str());
     float maxW = n->w * app->zoom;
-    if (app->IsWeb() && maxW >= U(90))
+    if (app->WebBrowserBar(n))
     {
         // web pages: the name is the tab title inside the browser bar (App::DrawWebChrome)
         float barH = U(30);
@@ -1022,6 +1022,21 @@ void App::CanvasOverlay(ImDrawList* dl)
         dl->PushClipRect(la, ImVec2(lb.x, lb.y + U(2)), true);
         dl->AddText(uiFont, fs, la, sel ? Accent : hov ? Text : TextDim, r->name.c_str());
         dl->PopClipRect();
+        // web pages outside a browser window: their screen at the right end of the label row
+        if (IsWeb() && !WebBrowserBar(r.get()))
+        {
+            std::string cap = WebFrameCaption(r.get());
+            float right = WorldToScreen(ImVec2(r->x + r->w, r->y)).x;
+            ImVec2 cs = uiFont->CalcTextSizeA(fs, FLT_MAX, 0, cap.c_str());
+            if (!cap.empty() && right - cs.x > lb.x + U(10)) dl->AddText(uiFont, fs, ImVec2(right - cs.x, la.y), TextFaint, cap.c_str());
+            else if (!cap.empty())
+            {
+                // narrow: only the width
+                cap = std::to_string((int)std::round(r->w));
+                cs = uiFont->CalcTextSizeA(fs, FLT_MAX, 0, cap.c_str());
+                if (right - cs.x > lb.x + U(10)) dl->AddText(uiFont, fs, ImVec2(right - cs.x, la.y), TextFaint, cap.c_str());
+            }
+        }
     }
 
     // Hover outline
@@ -1230,6 +1245,7 @@ void App::DrawCanvas()
     }
 
     DrawMotionPath(dl);
+    if (!preview) DrawWebGuides(dl);
 
     // Pixel grid (above the content, like design tools) from 400%
     if (pixelGrid && zoom >= kPixelGridZoom)

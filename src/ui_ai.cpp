@@ -137,6 +137,16 @@ static bool ApplyAiOpImpl(App* app, const json& op, std::string* err)
         selection.clear();
         return true;
     }
+    if (o == "web_layout" || o == "web_device")
+    {
+        // web pages: another screen size of a page, or the screen preset of a page frame
+        Node* page = FindRef(doc, op.contains("page") ? op["page"] : op.value("id", json()));
+        std::string device = op.value("device", std::string());
+        if (!page || page->parent || page->type != NodeType::Frame) { *err = o + ": 'page' must be a top-level frame"; return false; }
+        if (o == "web_device") { app->SetWebDevice(page, device.c_str(), op.value("rotated", false)); return page->device == device || (*err = "web_device: unknown device '" + device + "'", false); }
+        if (!app->AddWebLayout(page, device.c_str())) { *err = "web_layout: unknown device '" + device + "'"; return false; }
+        return true;
+    }
     if (o == "select")
     {
         std::vector<std::string> ids;
@@ -541,7 +551,7 @@ void App::DrawAiTab()
     bool snap = ai.sendSnapshot;
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + U(2));
     ImGui::PushStyleColor(ImGuiCol_Text, TextDim);
-    if (ImGui::Checkbox("canvas snapshot", &snap)) { ai.sendSnapshot = snap; SaveSettings(); }
+    if (ui::Check("canvas snapshot", &snap)) { ai.sendSnapshot = snap; SaveSettings(); }
     ImGui::PopStyleColor();
     ImGui::SetCursorScreenPos(ImVec2(boxMin.x + W - U(32), boxMin.y + boxH - U(30)));
     if (busy)

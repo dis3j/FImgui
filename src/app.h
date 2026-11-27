@@ -101,8 +101,16 @@ public:
     Node* WebCurrentPage();            // the page of the selection, else the page in the middle of the view
     void FollowLink(Node* n);          // preview: a click on a linked layer
     void DrawWebChrome(ImDrawList* dl);
+    void DrawWebGuides(ImDrawList* dl);   // over device pages: the end of the first screen and the fold of foldables
     void DrawWebPanel(float W);
     void DrawWebPageSection(Node* page, float W);
+    void DrawWebFramePresets(float W);   // Frame tool: screen presets for a new page
+    void OpenWebScreens(Node* page);     // live preview of every breakpoint side by side
+    bool WebBrowserBar(const Node* n) const;          // the page is drawn in a browser window (desktop-wide)
+    std::string WebFrameCaption(const Node* n) const; // "iPhone 17 / 17 Pro  402" next to the frame name
+    Node* AddWebPage(const char* deviceKey);                 // a new page frame for a device preset
+    Node* AddWebLayout(Node* page, const char* deviceKey);   // another screen size of the page (a copy adapted to the width)
+    void SetWebDevice(Node* frame, const char* deviceKey, bool rotated = false);
     bool DrawLinkSection(Node* n, float W);
 
     // ---- projects (workspace/<Name>/<name>.fimgui + fonts/ images/ icons/ videos/ export/)
